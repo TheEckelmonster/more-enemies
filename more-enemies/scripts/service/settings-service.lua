@@ -175,7 +175,7 @@ end
 -- NAUVIS_DIFFICULTY
 -- GLEBA_DIFFICULTY
 function settings_service.get_difficulty(surface_name)
-  local setting = false
+  local setting = "Vanilla"
 
   if (  surface_name == Constants.DEFAULTS.planets.nauvis.string_val
     and settings and settings.startup and settings.startup[Nauvis_Settings_Constants.settings.NAUVIS_DIFFICULTY.name])

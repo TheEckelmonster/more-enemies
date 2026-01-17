@@ -2,7 +2,7 @@ local character_explosion = util.table.deepcopy(data.raw["artillery-projectile"]
 character_explosion.name = "character-explosion-nuclear"
 
 for k, v in pairs(data.raw["projectile"]["atomic-rocket"].action.action_delivery.target_effects) do
-	table.insert(character_explosion.action.action_delivery.target_effects, v)
+    table.insert(character_explosion.action.action_delivery.target_effects, v)
 end
 
 data:extend({character_explosion})

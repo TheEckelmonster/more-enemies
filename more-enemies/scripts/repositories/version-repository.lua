@@ -5,9 +5,9 @@ end
 
 local Log = require("libs.log.log")
 local Version_Data = require("scripts.data.version-data")
-local Bug_Fix_Data = require("scripts.data.versions.bug-fix-data")
-local Major_Data = require("scripts.data.versions.major-data")
-local Minor_Data = require("scripts.data.versions.minor-data")
+-- local Bug_Fix_Data = require("scripts.data.versions.bug-fix-data")
+-- local Major_Data = require("scripts.data.versions.major-data")
+-- local Minor_Data = require("scripts.data.versions.minor-data")
 local More_Enemies_Data = require("scripts.data.more-enemies-data")
 
 local version_repository = {}

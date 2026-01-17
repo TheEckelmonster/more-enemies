@@ -16,7 +16,7 @@ function version_validations.validate_version()
 
   local version = Version_Service.validate_version()
   local validate_fun = function ()
-    Log.warn("more-enemies: Invalid version detected relative to version " .. Version_Data.string_val .. "; reinitializing naively")
+    Log.error("more-enemies: Invalid version detected relative to version " .. Version_Data:to_string() .. "; reinitializing naively")
     Initialization.reinit()
     local return_val = true
     if (not Version_Service.validate_version().valid) then

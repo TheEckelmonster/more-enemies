@@ -13,11 +13,12 @@ attack_group_data.radius = 1
 attack_group_data.tick = 0
 attack_group_data.unit_group = nil
 
-function attack_group_data:new(obj)
+function attack_group_data:new(obj, data)
     Log.debug("attack_group_data:new")
     Log.info(obj)
+    Log.info(data)
 
-    obj = Data:new(obj) or Data:new()
+    obj = Data:new(obj, data) or Data:new(_, data)
 
     local defaults = {
         chunks = self.chunks,

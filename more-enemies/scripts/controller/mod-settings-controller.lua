@@ -1,7 +1,3 @@
--- If already defined, return
-if _settings_controller and _settings_controller.more_enemies then
-    return _settings_controller
-end
 
 local Attack_Group_Repository = require("scripts.repositories.attack-group-repository")
 local Constants = require("libs.constants.constants")
@@ -15,10 +11,11 @@ local Settings_Service = require("scripts.service.settings-service")
 
 local locals = {}
 
-local settings_controller = {}
+local mod_settings_controller = {}
+mod_settings_controller.name = "mod_settings_controller"
 
-function settings_controller.mod_setting_changed(event)
-    Log.debug("settings_controller.mod_setting_changed")
+function mod_settings_controller.mod_setting_changed(event)
+    Log.debug("mod_settings_controller.mod_setting_changed")
     Log.info(event)
 
     if (event and event.setting) then
@@ -58,6 +55,12 @@ function settings_controller.mod_setting_changed(event)
         end
     end
 end
+Event_Handler:register_event({
+    event_name = "on_runtime_mod_setting_changed",
+    source_name = "mod_settings_controller.on_runtime_mod_setting_changed",
+    func_name = "mod_settings_controller.on_runtime_mod_setting_changed",
+    func = mod_settings_controller.on_runtime_mod_setting_changed,
+})
 
 function locals.invoke(event, fun, params)
     Log.debug("Mod settings changed")
@@ -69,8 +72,4 @@ function locals.invoke(event, fun, params)
     end
 end
 
-settings_controller.more_enemies = true
-
-local _settings_controller = settings_controller
-
-return settings_controller
+return mod_settings_controller

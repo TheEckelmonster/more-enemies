@@ -26,6 +26,10 @@ local locals = {}
 local difficulty_utils = {}
 
 function difficulty_utils.get_difficulty(planet, reindex)
+    Log.debug("difficulty_utils.get_difficulty")
+    Log.info(planet)
+    Log.info(reindex)
+
   local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
 
   reindex = reindex or false
@@ -43,7 +47,8 @@ function difficulty_utils.get_difficulty(planet, reindex)
   then
     -- While it may exist, check if it's still valid
     local planet_difficulty_setting = Settings_Service.get_difficulty(planet)
-    Log.info(planet_difficulty_setting)
+    -- Log.info(planet_difficulty_setting)
+    -- log(serpent.block(planet_difficulty_setting))
     -- Log.info(storage.more_enemies.difficulties)
 
     if ( not more_enemies_data.difficulties

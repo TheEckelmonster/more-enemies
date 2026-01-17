@@ -27,9 +27,10 @@ function overmind_repository.save_overmind_data(surface_name, optionals)
     if (not storage) then return return_val end
     if (not storage.more_enemies) then storage.more_enemies = More_Enemies_Data:new() end
     if (not storage.more_enemies.overmind) then storage.more_enemies.overmind = {} end
-    if (not storage.more_enemies.overmind[surface_name]) then storage.more_enemies.overmind[surface_name] = return_val end
+    -- if (not storage.more_enemies.overmind[surface_name]) then storage.more_enemies.overmind[surface_name] = return_val end
+    storage.more_enemies.overmind[surface_name] = return_val
+    -- return_val = storage.more_enemies.overmind[surface_name]
 
-    return_val = storage.more_enemies.overmind[surface_name]
     return_val.created = return_val.created or game.tick
 
     return_val.surface = surface
@@ -84,6 +85,7 @@ function overmind_repository.get_overmind_data(surface_name, optionals)
   local return_val = Overmind_Data:new()
 
   if (not game) then return return_val end
+  if (type(surface_name) ~= "string") then return return_val end
 
   optionals = optionals or {}
 

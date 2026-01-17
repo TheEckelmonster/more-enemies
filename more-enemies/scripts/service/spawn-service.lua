@@ -226,6 +226,7 @@ function spawn_service.do_nth_tick(event, more_enemies_data)
 
           Log.debug("Attempting to clone entity on planet " .. planet.string_val)
           Log.debug(clone_settings)
+        --   log(serpent.block(more_enemies_data))
           if (planet.string_val == Constants.DEFAULTS.planets.nauvis.string_val) then
             clones = Spawn_Utils.clone_entity(
               { value = Nauvis_Settings_Constants.settings.CLONE_NAUVIS_UNITS.default_value },
@@ -378,6 +379,10 @@ function spawn_service.do_nth_tick_cleanup(event, more_enemies_data)
     if (not more_enemies_data.clones[planet.string_val]) then more_enemies_data.clones[planet.string_val] = {} end
     if (not more_enemies_data.clones[planet.string_val].unit) then more_enemies_data.clones[planet.string_val].unit = {} end
     if (not more_enemies_data.clones[planet.string_val].unit_group) then more_enemies_data.clones[planet.string_val].unit_group = {} end
+
+    if (not more_enemies_data.clone[planet.string_val]) then more_enemies_data.clone[planet.string_val] = {} end
+    if (more_enemies_data.clone[planet.string_val].unit == nil) then more_enemies_data.clone[planet.string_val].unit = 0 end
+    if (more_enemies_data.clone[planet.string_val].unit_group == nil) then more_enemies_data.clone[planet.string_val].unit_group = 0 end
 
     Log.warn("staged_clones.unit")
     if (more_enemies_data.staged_clone[planet.string_val].unit <= Settings_Service.get_maximum_number_of_spawned_clones(planet.string_val)) then
