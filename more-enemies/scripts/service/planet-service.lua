@@ -1,7 +1,4 @@
--- If already defined, return
-if _planet_service and _planet_service.more_enemies then
-  return _planet_service
-end
+local storage
 
 local Attack_Group_Repository = require("scripts.repositories.attack-group-repository")
 local Constants = require("libs.constants.constants")
@@ -40,8 +37,8 @@ function planet_service.on_surface_created(event)
   end
 end
 
-planet_service.more_enemies = true
-
-local _planet_service = planet_service
+function planet_service.init(__storage)
+    storage = __storage
+end
 
 return planet_service

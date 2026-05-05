@@ -13,30 +13,31 @@ attack_group_data.radius = 1
 attack_group_data.tick = 0
 attack_group_data.unit_group = nil
 
-function attack_group_data:new(obj)
-  Log.debug("attack_group_data:new")
-  Log.info(obj)
+function attack_group_data:new(obj, data)
+    Log.debug("attack_group_data:new")
+    Log.info(obj)
+    Log.info(data)
 
-  obj = Data:new(obj) or Data:new()
+    obj = Data:new(obj, data) or Data:new(_, data)
 
-  local defaults = {
-    chunks = self.chunks,
-    max_distance = self.max_distance,
-    peace_time_tick = self.peace_time_tick,
-    surface = self.surface,
-    surface_name = self.surface_name,
-    radius = self.radius,
-    tick = self.tick,
-    unit_group = self.unit_group,
-  }
+    local defaults = {
+        chunks = self.chunks,
+        max_distance = self.max_distance,
+        peace_time_tick = self.peace_time_tick,
+        surface = self.surface,
+        surface_name = self.surface_name,
+        radius = self.radius,
+        tick = self.tick,
+        unit_group = self.unit_group,
+    }
 
-  for k, v in pairs(defaults) do
-    if (obj[k] == nil) then obj[k] = v end
-  end
+    for k, v in pairs(defaults) do
+        if (obj[k] == nil) then obj[k] = v end
+    end
 
-  setmetatable(obj, self)
-  self.__index = self
-  return obj
+    setmetatable(obj, self)
+    self.__index = self
+    return obj
 end
 
 return attack_group_data

@@ -2,7 +2,11 @@ local Settings_Utils = require("scripts.utils.settings-utils")
 
 local names = Settings_Utils.get_attack_group_blacklist_names()
 
-log(serpent.block(names))
+-- log(serpent.block(names))
+
+-- for k, _ in pairs(defines.prototypes["entity"]) do
+--     log(serpent.block(k))
+-- end
 
 for _, v in pairs(names) do
     local name = nil

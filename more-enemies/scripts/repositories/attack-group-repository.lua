@@ -1,7 +1,4 @@
--- If already defined, return
-if _attack_group_repository and _attack_group_repository.more_enemies then
-  return _attack_group_repository
-end
+local storage
 
 local Attack_Group_Data = require("scripts.data.attack-group-data")
 local Log = require("libs.log.log")
@@ -99,8 +96,8 @@ function attack_group_repository.get_attack_group_data(surface_name, optionals)
   return storage.more_enemies.attack_group[surface_name]
 end
 
-attack_group_repository.more_enemies = true
-
-local _attack_group_repository = attack_group_repository
+function attack_group_repository.init(__storage)
+    storage = __storage
+end
 
 return attack_group_repository

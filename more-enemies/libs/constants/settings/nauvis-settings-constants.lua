@@ -5,6 +5,8 @@ end
 
 local Constants = require("libs.constants.constants")
 
+local prefix = "more-enemies-"
+
 local nauvis_settings_constants = {}
 
 nauvis_settings_constants.settings = {}
@@ -12,7 +14,7 @@ nauvis_settings_constants.settings = {}
 -- { Cloning } --
 nauvis_settings_constants.settings.CLONE_NAUVIS_UNITS = {
     type = "double-setting",
-    name = "more-enemies-clone-nauvis-units",
+    name = prefix .. "clone-nauvis-units",
     setting_type = "runtime-global",
     order = "daa",
     default_value = 1,
@@ -22,7 +24,7 @@ nauvis_settings_constants.settings.CLONE_NAUVIS_UNITS = {
 
 nauvis_settings_constants.settings.CLONE_NAUVIS_UNIT_GROUPS = {
     type = "double-setting",
-    name = "more-enemies-clone-gleba-nauvis-groups",
+    name = prefix .. "clone-nauvis-groups",
     setting_type = "runtime-global",
     order = "dab",
     default_value = 1,
@@ -32,7 +34,7 @@ nauvis_settings_constants.settings.CLONE_NAUVIS_UNIT_GROUPS = {
 
 nauvis_settings_constants.settings.MAXIMUM_NUMBER_OF_SPAWNED_CLONES_NAUVIS = {
     type = "int-setting",
-    name = "more-enemies-maximum-number-of-spawned-clones-nauvis",
+    name = prefix .. "maximum-number-of-spawned-clones-nauvis",
     setting_type = "runtime-global",
     order = "dyd",
     default_value = 400,
@@ -42,7 +44,7 @@ nauvis_settings_constants.settings.MAXIMUM_NUMBER_OF_SPAWNED_CLONES_NAUVIS = {
 
 nauvis_settings_constants.settings.MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES_NAUVIS = {
     type = "int-setting",
-    name = "more-enemies-maximum-number-of-unit-group-clones-nauvis",
+    name = prefix .. "maximum-number-of-unit-group-clones-nauvis",
     setting_type = "runtime-global",
     order = "dye",
     default_value = 400,
@@ -53,7 +55,7 @@ nauvis_settings_constants.settings.MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES_NAUVIS = 
 -- { Difficulty } --
 nauvis_settings_constants.settings.NAUVIS_DIFFICULTY = {
     type = "string-setting",
-    name = "more-enemies-nauvis-difficulty",
+    name = prefix .. "nauvis-difficulty",
     setting_type = "startup",
     order = "aaa",
     default_value = "Vanilla",
@@ -62,7 +64,7 @@ nauvis_settings_constants.settings.NAUVIS_DIFFICULTY = {
 
 nauvis_settings_constants.settings.NAUVIS_DO_EVOLUTION_FACTOR = {
     type = "bool-setting",
-    name = "more-enemies-nauvis-do-evolution-factor",
+    name = prefix .. "nauvis-do-evolution-factor",
     setting_type = "runtime-global",
     order = "caa",
     default_value = true,
@@ -70,7 +72,7 @@ nauvis_settings_constants.settings.NAUVIS_DO_EVOLUTION_FACTOR = {
 
 nauvis_settings_constants.settings.NAUVIS_DO_ATTACK_GROUP = {
     type = "bool-setting",
-    name = "more-enemies-nauvis-do-attack-group",
+    name = prefix .. "nauvis-do-attack-group",
     setting_type = "runtime-global",
     order = "cab",
     default_value = true,
@@ -78,7 +80,7 @@ nauvis_settings_constants.settings.NAUVIS_DO_ATTACK_GROUP = {
 
 nauvis_settings_constants.settings.NAUVIS_ATTACK_GROUP_PEACE_TIME = {
     type = "double-setting",
-    name = "more-enemies-nauvis-attack-group-peace-time",
+    name = prefix .. "nauvis-attack-group-peace-time",
     setting_type = "runtime-global",
     order = "cad",
     default_value = 45,
@@ -87,7 +89,7 @@ nauvis_settings_constants.settings.NAUVIS_ATTACK_GROUP_PEACE_TIME = {
 
 nauvis_settings_constants.settings.NAUVIS_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER = {
     type = "double-setting",
-    name = "more-enemies-nauvis-spawn-attack-group-probability-modifier",
+    name = prefix .. "nauvis-spawn-attack-group-probability-modifier",
     setting_type = "runtime-global",
     order = "cae",
     default_value = 1,
@@ -97,7 +99,7 @@ nauvis_settings_constants.settings.NAUVIS_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIE
 
 nauvis_settings_constants.settings.NAUVIS_ATTACK_GROUP_REQUIRE_NEARBY_SPAWNER = {
     type = "bool-setting",
-    name = "more-enemies-nauvis-attack-group-require-nearby-spawner",
+    name = prefix .. "nauvis-attack-group-require-nearby-spawner",
     setting_type = "runtime-global",
     order = "cac",
     default_value = true,
@@ -106,7 +108,7 @@ nauvis_settings_constants.settings.NAUVIS_ATTACK_GROUP_REQUIRE_NEARBY_SPAWNER = 
 -- { Biters } --
 nauvis_settings_constants.settings.NAUVIS_BITER_MAX_COUNT_OF_OWNED_UNITS = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-count-of-owned-units-biter",
+    name = prefix .. "spawner-nauvis-max-count-of-owned-units-biter",
     setting_type = "startup",
     order = "caa",
     default_value = 7,
@@ -115,7 +117,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MAX_COUNT_OF_OWNED_UNITS = {
 
 nauvis_settings_constants.settings.NAUVIS_BITER_MAX_COUNT_OF_OWNED_DEFENSIVE_UNITS = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-count-of-owned-defensive-units-biter",
+    name = prefix .. "spawner-nauvis-max-count-of-owned-defensive-units-biter",
     setting_type = "startup",
     order = "cab",
     default_value = 7,
@@ -124,7 +126,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MAX_COUNT_OF_OWNED_DEFENSIVE_UNI
 
 nauvis_settings_constants.settings.NAUVIS_BITER_MAX_FRIENDS_AROUND_TO_SPAWN = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-friends-around-to-spawn-biter",
+    name = prefix .. "spawner-nauvis-max-friends-around-to-spawn-biter",
     setting_type = "startup",
     order = "cac",
     default_value = 5,
@@ -132,7 +134,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MAX_FRIENDS_AROUND_TO_SPAWN = {
 }
 nauvis_settings_constants.settings.NAUVIS_BITER_MAX_DEFENSIVE_FRIENDS_AROUND_TO_SPAWN = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-defensive-friends-around-to-spawn-biter",
+    name = prefix .. "spawner-nauvis-max-defensive-friends-around-to-spawn-biter",
     setting_type = "startup",
     order = "cad",
     default_value = 5,
@@ -141,7 +143,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MAX_DEFENSIVE_FRIENDS_AROUND_TO_
 
 nauvis_settings_constants.settings.NAUVIS_BITER_MAX_SPAWNING_COOLDOWN = {
     type = "int-setting",
-    name = "more-enemies-max-spawning-cooldown-biter",
+    name = prefix .. "max-spawning-cooldown-biter",
     setting_type = "startup",
     order = "cae",
     default_value = 360,
@@ -150,7 +152,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MAX_SPAWNING_COOLDOWN = {
 
 nauvis_settings_constants.settings.NAUVIS_BITER_MIN_SPAWNING_COOLDOWN = {
     type = "int-setting",
-    name = "more-enemies-min-spawning-cooldown-biter",
+    name = prefix .. "min-spawning-cooldown-biter",
     setting_type = "startup",
     order = "caf",
     default_value = 150,
@@ -160,7 +162,7 @@ nauvis_settings_constants.settings.NAUVIS_BITER_MIN_SPAWNING_COOLDOWN = {
 -- { Spitters } --
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_COUNT_OF_OWNED_UNITS = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-count-of-owned-units-spitter",
+    name = prefix .. "spawner-nauvis-max-count-of-owned-units-spitter",
     setting_type = "startup",
     order = "cba",
     default_value = 7,
@@ -169,7 +171,7 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_COUNT_OF_OWNED_UNITS = {
 
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_COUNT_OF_OWNED_DEFENSIVE_UNITS = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-count-of-owned-defensive-units-spitter",
+    name = prefix .. "spawner-nauvis-max-count-of-owned-defensive-units-spitter",
     setting_type = "startup",
     order = "cbb",
     default_value = 7,
@@ -178,7 +180,7 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_COUNT_OF_OWNED_DEFENSIVE_U
 
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_FRIENDS_AROUND_TO_SPAWN = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-friends-around-to-spawn-spitter",
+    name = prefix .. "spawner-nauvis-max-friends-around-to-spawn-spitter",
     setting_type = "startup",
     order = "cbc",
     default_value = 5,
@@ -187,7 +189,7 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_FRIENDS_AROUND_TO_SPAWN = 
 
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_DEFENSIVE_FRIENDS_AROUND_TO_SPAWN = {
     type = "int-setting",
-    name = "more-enemies-spawner-nauvis-max-defensive-friends-around-to-spawn-spitter",
+    name = prefix .. "spawner-nauvis-max-defensive-friends-around-to-spawn-spitter",
     setting_type = "startup",
     order = "cbd",
     default_value = 5,
@@ -196,7 +198,7 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_DEFENSIVE_FRIENDS_AROUND_T
 
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_SPAWNING_COOLDOWN = {
     type = "int-setting",
-    name = "more-enemies-max-spawning-cooldown-spitter",
+    name = prefix .. "max-spawning-cooldown-spitter",
     setting_type = "startup",
     order = "cbe",
     default_value = 360,
@@ -205,7 +207,7 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MAX_SPAWNING_COOLDOWN = {
 
 nauvis_settings_constants.settings.NAUVIS_SPITTER_MIN_SPAWNING_COOLDOWN = {
     type = "int-setting",
-    name = "more-enemies-min-spawning-cooldown-spitter",
+    name = prefix .. "min-spawning-cooldown-spitter",
     setting_type = "startup",
     order = "cbf",
     default_value = 150,

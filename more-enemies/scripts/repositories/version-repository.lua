@@ -1,13 +1,10 @@
--- If already defined, return
-if _version_repository and _version_repository.more_enemies then
-  return _version_repository
-end
+local storage
 
 local Log = require("libs.log.log")
 local Version_Data = require("scripts.data.version-data")
-local Bug_Fix_Data = require("scripts.data.versions.bug-fix-data")
-local Major_Data = require("scripts.data.versions.major-data")
-local Minor_Data = require("scripts.data.versions.minor-data")
+-- local Bug_Fix_Data = require("scripts.data.versions.bug-fix-data")
+-- local Major_Data = require("scripts.data.versions.major-data")
+-- local Minor_Data = require("scripts.data.versions.minor-data")
 local More_Enemies_Data = require("scripts.data.more-enemies-data")
 
 local version_repository = {}
@@ -87,8 +84,8 @@ function version_repository.get_version_data(optionals)
   return storage.more_enemies.version_data
 end
 
-version_repository.more_enemies = true
-
-local _version_repository = version_repository
+function version_repository.init(__storage)
+    storage = __storage
+end
 
 return version_repository

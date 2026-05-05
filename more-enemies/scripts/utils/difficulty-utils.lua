@@ -1,7 +1,4 @@
--- If already defined, return
-if (_difficulty_utils and _difficulty_utils.more_enemies) then
-  return _difficulty_utils
-end
+local storage
 
 local Armoured_Biters_Constants = require("libs.constants.mods.armoured-biters-constants")
 local Cold_Biters_Constants = require("libs.constants.mods.cold-biters-constants")
@@ -26,168 +23,191 @@ local locals = {}
 local difficulty_utils = {}
 
 function difficulty_utils.get_difficulty(planet, reindex)
-  local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
+    Log.debug("difficulty_utils.get_difficulty")
+    Log.info(planet)
+    Log.info(reindex)
 
-  reindex = reindex or false
-
-  Log.debug(reindex)
-  -- if (storage) then Log.info(storage.more_enemies.difficulties) end
-
-  if (  not reindex
-    and planet
-    and storage
-    and more_enemies_data
-    and more_enemies_data.difficulties
-    and more_enemies_data.difficulties[planet]
-    and more_enemies_data.difficulties[planet].valid)
-  then
-    -- While it may exist, check if it's still valid
-    local planet_difficulty_setting = Settings_Service.get_difficulty(planet)
-    Log.info(planet_difficulty_setting)
-    -- Log.info(storage.more_enemies.difficulties)
-
-    if ( not more_enemies_data.difficulties
-      or not more_enemies_data.difficulties[planet]
-      or not more_enemies_data.difficulties[planet].difficulty
-      or not more_enemies_data.difficulties[planet].difficulty.selected_difficulty
-      or not more_enemies_data.difficulties[planet].difficulty.selected_difficulty.valid
-      or     more_enemies_data.difficulties[planet].difficulty.selected_difficulty.string_val ~= planet_difficulty_setting)
-    then
-      Log.debug("reindexing")
-      return difficulty_utils.get_difficulty(planet, true)
+    -- local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
+    local more_enemies_data = nil
+    if (storage) then
+        storage.more_enemies = storage.more_enemies or More_Enemies_Repository.get_more_enemies_data()
+        more_enemies_data = storage.more_enemies
     else
-      return more_enemies_data.difficulties[planet]
+        more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
     end
-  end
 
-  local difficulty = {
-    valid = false
-  }
+    reindex = reindex or false
 
-  if (  planet == "gleba"
-    and ((mods and not mods["space-age"]) or (script and script.active_mods and not script.active_mods["space-age"])))
-  then
-    Log.warn("planet invalid")
-    return difficulty
-  end
+    Log.debug(reindex)
+    -- if (storage) then Log.info(storage.more_enemies.difficulties) end
 
-  if (storage and not more_enemies_data) then more_enemies_data = More_Enemies_Data:new() end
-  if (storage and not more_enemies_data.difficulties) then more_enemies_data.difficulties = {} end
+    if (    not reindex
+        and planet
+        and storage
+        and more_enemies_data
+        and more_enemies_data.difficulties
+        and more_enemies_data.difficulties[planet]
+        and more_enemies_data.difficulties[planet].valid
+    ) then
+        -- While it may exist, check if it's still valid
+        local planet_difficulty_setting = Settings_Service.get_difficulty(planet)
+        -- Log.info(planet_difficulty_setting)
+        -- log(serpent.block(planet_difficulty_setting))
+        -- Log.info(storage.more_enemies.difficulties)
 
-  Log.info(planet)
-  if (not planet or planet == "") then
-    Log.warn("planet invalid")
-    return difficulty
-  end
+        if (
+               not more_enemies_data.difficulties
+            or not more_enemies_data.difficulties[planet]
+            or not more_enemies_data.difficulties[planet].difficulty
+            or not more_enemies_data.difficulties[planet].difficulty.selected_difficulty
+            or not more_enemies_data.difficulties[planet].difficulty.selected_difficulty.valid
+            or more_enemies_data.difficulties[planet].difficulty.selected_difficulty.string_val ~= planet_difficulty_setting
+        ) then
+            Log.debug("reindexing")
+            return difficulty_utils.get_difficulty(planet, true)
+        else
+            return more_enemies_data.difficulties[planet]
+        end
+    end
 
-  if (storage and more_enemies_data.difficulties and not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = difficulty end
+    local difficulty = {
+        valid = false
+    }
 
-  local planet_difficulty = Settings_Service.get_difficulty(planet)
-  Log.info(planet_difficulty)
+    if (
+            planet == "gleba"
+        and (
+                (
+                    mods
+                and not mods["space-age"]
+            ) or (
+                    script
+                and script.active_mods
+                and not script.active_mods["space-age"]
+            )
+        )
+    ) then
+        Log.warn("planet invalid")
+        return difficulty
+    end
 
-  local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[planet_difficulty]]
-  Log.info(selected_difficulty)
+    if (storage and not more_enemies_data) then more_enemies_data = More_Enemies_Data:new() end
+    if (storage and not more_enemies_data.difficulties) then more_enemies_data.difficulties = {} end
 
-  if (selected_difficulty and selected_difficulty.valid) then
-    if (reindex) then
-      difficulty = locals.init_difficulty(planet, selected_difficulty)
+    Log.info(planet)
+    if (not planet or planet == "") then
+        Log.warn("planet invalid")
+        return difficulty
+    end
+
+    if (storage and more_enemies_data.difficulties and not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = difficulty end
+
+    local planet_difficulty = Settings_Service.get_difficulty(planet)
+    Log.info(planet_difficulty)
+
+    local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[planet_difficulty]]
+    Log.info(selected_difficulty)
+
+    if (selected_difficulty and selected_difficulty.valid) then
+        if (reindex) then
+            difficulty = locals.init_difficulty(planet, selected_difficulty)
+        else
+            difficulty = locals.set_difficulty(planet, selected_difficulty)
+        end
     else
-      difficulty = locals.set_difficulty(planet, selected_difficulty)
+        difficulty = locals.init_difficulty(planet)
     end
-  else
-    difficulty = locals.init_difficulty(planet)
-  end
 
-  Log.info(difficulty)
+    Log.info(difficulty)
 
-  -- If storage difficulty for the planet is invalid, replace it
-  if (  storage
-    and more_enemies_data
-    and more_enemies_data.difficulties
-    and more_enemies_data.difficulties[planet]
-    and not more_enemies_data.difficulties[planet].valid)
-  then
-    more_enemies_data.difficulties[planet] = difficulty
-  end
+    -- If storage difficulty for the planet is invalid, replace it
+    if (    storage
+        and more_enemies_data
+        and more_enemies_data.difficulties
+        and more_enemies_data.difficulties[planet]
+        and not more_enemies_data.difficulties[planet].valid
+    ) then
+        more_enemies_data.difficulties[planet] = difficulty
+    end
 
-  return difficulty
+    return difficulty
 end
 
 function locals.set_difficulty(planet, difficulty_setting)
-  local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
+    local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
 
-  difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
-  planet = planet or "nauvis"
+    difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
+    planet = planet or "nauvis"
 
-  local difficulty = {
-    valid = false
-  }
+    local difficulty = {
+        valid = false
+    }
 
-  -- local modifier = 1
-  -- local cooldown_modifier = 1
-  local vanilla = false
-  local selected_difficulty = nil
+    -- local modifier = 1
+    -- local cooldown_modifier = 1
+    local vanilla = false
+    local selected_difficulty = nil
 
-  -- Determine difficulty
-  if (difficulty_setting == Easy_Difficulty_Data.string_val or difficulty_setting == Easy_Difficulty_Data.value) then
-    selected_difficulty = Easy_Difficulty_Data:new()
-  elseif (difficulty_setting == Vanilla_Difficulty_Data.string_val or difficulty_setting == Vanilla_Difficulty_Data.value) then
-    vanilla = true
-    selected_difficulty = Vanilla_Difficulty_Data:new()
-  elseif (difficulty_setting == Vanilla_Plus_Difficulty_Data.string_val or difficulty_setting == Vanilla_Plus_Difficulty_Data.value) then
-    selected_difficulty = Vanilla_Plus_Difficulty_Data:new()
-  elseif (difficulty_setting == Hard_Difficulty_Data.string_val or difficulty_setting == Hard_Difficulty_Data.value) then
-    selected_difficulty = Hard_Difficulty_Data:new()
-  elseif (difficulty_setting == Insanity_Difficulty_Data.string_val or difficulty_setting == Insanity_Difficulty_Data.value) then
-    selected_difficulty = Insanity_Difficulty_Data:new()
-  else
-    Log.error("No difficulty detected")
-  end
+    -- Determine difficulty
+    if (difficulty_setting == Easy_Difficulty_Data.string_val or difficulty_setting == Easy_Difficulty_Data.value) then
+        selected_difficulty = Easy_Difficulty_Data:new()
+    elseif (difficulty_setting == Vanilla_Difficulty_Data.string_val or difficulty_setting == Vanilla_Difficulty_Data.value) then
+        vanilla = true
+        selected_difficulty = Vanilla_Difficulty_Data:new()
+    elseif (difficulty_setting == Vanilla_Plus_Difficulty_Data.string_val or difficulty_setting == Vanilla_Plus_Difficulty_Data.value) then
+        selected_difficulty = Vanilla_Plus_Difficulty_Data:new()
+    elseif (difficulty_setting == Hard_Difficulty_Data.string_val or difficulty_setting == Hard_Difficulty_Data.value) then
+        selected_difficulty = Hard_Difficulty_Data:new()
+    elseif (difficulty_setting == Insanity_Difficulty_Data.string_val or difficulty_setting == Insanity_Difficulty_Data.value) then
+        selected_difficulty = Insanity_Difficulty_Data:new()
+    else
+        Log.error("No difficulty detected")
+    end
 
-  difficulty = locals.create_difficulty(planet, selected_difficulty, vanilla)
+    difficulty = locals.create_difficulty(planet, selected_difficulty, vanilla)
 
-  if (storage) then
-    if (not more_enemies_data.difficulties) then more_enemies_data.difficulties = {} end
-    if (not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = {} end
-    more_enemies_data.difficulties[planet].difficulty = difficulty
-  end
+    if (storage) then
+        if (not more_enemies_data.difficulties) then more_enemies_data.difficulties = {} end
+        if (not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = {} end
+        more_enemies_data.difficulties[planet].difficulty = difficulty
+    end
 
-  Log.info(difficulty)
+    Log.info(difficulty)
 
-  return difficulty
+    return difficulty
 end
 
 function locals.init_difficulty(planet, difficulty_setting)
-  local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
+    local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
 
-  difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
-  planet = planet or "nauvis"
+    difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
+    planet = planet or "nauvis"
 
-  local difficulty = {
-    valid = false
-  }
+    local difficulty = {
+        valid = false
+    }
 
-  if (not planet) then
-    Log.warn("planet invalid")
+    if (not planet) then
+        Log.warn("planet invalid")
+        return difficulty
+    end
+
+    difficulty = locals.create_difficulty(planet, difficulty_setting)
+
+    if (storage) then
+        if (not more_enemies_data.difficulties) then more_enemies_data.difficulties = More_Enemies_Data:new() end
+        if (not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = {} end
+        more_enemies_data.difficulties[planet].difficulty = difficulty
+    end
+
     return difficulty
-  end
-
-  difficulty = locals.create_difficulty(planet, difficulty_setting)
-
-  if (storage) then
-    if (not more_enemies_data.difficulties) then more_enemies_data.difficulties = More_Enemies_Data:new() end
-    if (not more_enemies_data.difficulties[planet]) then more_enemies_data.difficulties[planet] = {} end
-    more_enemies_data.difficulties[planet].difficulty = difficulty
-  end
-
-  return difficulty
 end
 
 function locals.create_difficulty(planet, selected_difficulty, vanilla)
-  Log.debug("create_difficulty")
-  Log.info(planet)
-  Log.info(selected_difficulty)
-  Log.info(vanilla)
+--   Log.debug("create_difficulty")
+--   Log.info(planet)
+--   Log.info(selected_difficulty)
+--   Log.info(vanilla)
 
   local modifier = modifier or 1
   if (modifier < 0) then modifier = 0 end
@@ -358,8 +378,8 @@ function locals.create_difficulty(planet, selected_difficulty, vanilla)
   return difficulty
 end
 
-difficulty_utils.more_enemies = true
-
-local _difficulty_utils = difficulty_utils
+function difficulty_utils.init(__storage)
+    storage = __storage
+end
 
 return difficulty_utils

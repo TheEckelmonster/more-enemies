@@ -1,7 +1,4 @@
--- If already defined, return
-if _mod_repository and _mod_repository.more_enemies then
-  return _mod_repository
-end
+local storage
 
 local Log = require("libs.log.log")
 local Mod_Data = require("scripts.data.mod-data")
@@ -84,8 +81,8 @@ function mod_repository.get_mod_data(optionals)
   return storage.more_enemies.mod
 end
 
-mod_repository.more_enemies = true
-
-local _mod_repository = mod_repository
+function mod_repository.init(__storage)
+    storage = __storage
+end
 
 return mod_repository
