@@ -18,9 +18,6 @@ if (mods and (mods["BREAM"])) then
     })
 
     data:extend({
-        -- BREAM_Settings_Constants.settings.BREAM_DO_CLONE,
-        -- BREAM_Settings_Constants.settings.BREAM_USE_EVOLUTION_FACTOR,
-        -- BREAM_Settings_Constants.settings.BREAM_CLONE_UNITS,
         Mod_Settings.BREAM_DO_CLONE,
         Mod_Settings.BREAM_USE_EVOLUTION_FACTOR,
         Mod_Settings.BREAM_CLONE_UNITS,

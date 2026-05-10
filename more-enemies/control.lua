@@ -6,11 +6,6 @@ Event_Handler = require("__TheEckelmonster-core-library__.scripts.event-handler"
 
 --[[ Data types and metatables ]]
 
--- structures
-local Queue_Data = require("__TheEckelmonster-core-library__.libs.data.structures.queue-data")
-
-script.register_metatable("Queue_Data", Queue_Data)
-
 -- versions
 local Bug_Fix_Data = require("__TheEckelmonster-core-library__.libs.data.versions.bug-fix-data")
 local Major_Data = require("__TheEckelmonster-core-library__.libs.data.versions.major-data")

@@ -16,19 +16,13 @@ local Vanilla_Difficulty_Data = require("scripts.data.difficulties.vanilla-diffi
 
 local settings_utils = {}
 
-local difficulties = nil
-
 function settings_utils.is_vanilla(surface_name)
     local return_val = true
 
-    if (not difficulties) then
-        storage.difficulties = storage.difficulties or {}
-        difficulties = storage.difficulties
+    storage.difficulties = storage.difficulties or {}
+    storage.difficulties[surface_name] = storage.difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
 
-        difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
-    end
-
-    local selected_difficulty = difficulties[surface_name]
+    local selected_difficulty = storage.difficulties[surface_name]
     if (not selected_difficulty or selected_difficulty.string_val ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
 
     if (return_val and Settings_Service.get_clone_unit_setting(surface_name) ~= 1) then return_val = false end

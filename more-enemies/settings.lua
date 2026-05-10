@@ -1,6 +1,5 @@
 local mods = mods
 
--- require("libs.log.log-settings")
 require("settings.nauvis.nauvis")
 require("settings.global")
 
