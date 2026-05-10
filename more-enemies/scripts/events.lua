@@ -209,7 +209,17 @@ Event_Handler:register_event({
     func = events.on_load,
 })
 
+local settings_service = require("scripts.service.settings-service")
+local get_difficulty = settings_service.get_difficulty
 function events.on_configuration_changed(event)
+    if (event.mod_startup_settings_changed) then
+        storage.difficulties = storage.difficulties or {}
+
+        for surface_name, _ in pairs(Constants.DEFAULTS.planets or {}) do
+            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+        end
+    end
+
     if (event.mod_changes) then
         --[[ Check if our mod updated ]]
         if (event.mod_changes[Constants.mod_name]) then

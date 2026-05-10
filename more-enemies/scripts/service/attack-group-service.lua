@@ -14,6 +14,7 @@ local type = type
 
 local defines = defines
 local command_attack_area = defines.command.attack_area
+local command_build_base = defines.command.build_base
 local distraction_by_damage = defines.distraction.by_damage
 
 local math_floor = math.floor

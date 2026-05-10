@@ -106,20 +106,42 @@ function entity_controller.on_mined_entity(event)
     storage.surfaces[surface_name].chunk_map = storage.surfaces[surface_name].chunk_map or {}
     local chunk_map = storage.surfaces[surface_name].chunk_map
 
+    storage.surfaces[surface_name].spawner_map = storage.surfaces[surface_name].spawner_map or {}
+    local spawner_map = storage.surfaces[surface_name].spawner_map
+
     local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. "/" .. math_floor(position.y / Constants.CHUNK_SIZE)
-    local chunk = chunk_map[xy]
-    if (not chunk) then return end
 
-    chunk.entity_count = chunk.entity_count or 1
-    chunk.entity_count = chunk.entity_count - 1
+    local chunk = nil
+    if (entity.type == "unit-spawner") then
+        chunk = spawner_map[xy]
+        if (not chunk) then return end
 
-    if (chunk.entity_count < 1) then
-        for i, v in ipairs(chunks) do
-            v.xy = v.xy or (v.x .. "/" .. v.y)
-            if (v.xy == xy) then
-                chunk_map[v.xy] = nil
-                table_remove(chunks, i)
-                break
+        chunk.spawner_count = chunk.spawner_count or 1
+        chunk.spawner_count = chunk.spawner_count - 1
+
+        if (chunk.spawner_count < 1) then
+            for i, v in ipairs(chunks) do
+                v.xy = v.xy or (v.x .. "/" .. v.y)
+                if (v.xy == xy) then
+                    spawner_map[v.xy] = nil
+                    break
+                end
+            end
+        end
+    else
+        chunk = chunk_map[xy]
+        if (not chunk) then return end
+        chunk.entity_count = chunk.entity_count or 1
+        chunk.entity_count = chunk.entity_count - 1
+
+        if (chunk.entity_count < 1) then
+            for i, v in ipairs(chunks) do
+                v.xy = v.xy or (v.x .. "/" .. v.y)
+                if (v.xy == xy) then
+                    chunk_map[v.xy] = nil
+                    table_remove(chunks, i)
+                    break
+                end
             end
         end
     end
@@ -139,30 +161,19 @@ Event_Handler:register_events({
     },
 })
 
-local on_biter_base_built
 function entity_controller.on_biter_base_built(event)
 
     if (not event) then return end
 
     local entity = event.entity
-    if (not entity or not entity.valid) then return end
+    if (not entity or not entity.valid or entity.type ~= "unit-spawner") then return end
 
     local surface = entity.surface
     if (not surface or not surface.valid) then return end
 
-    -- log(serpent.block(on_biter_base_built))
-    on_biter_base_built, storage.on_biter_base_built = storage.on_biter_base_built, storage.on_biter_base_built or {}
-
-    if (not on_biter_base_built.tick or on_biter_base_built.tick < event.tick) then
-        on_biter_base_built.tick = event.tick
-        on_biter_base_built.bases = {}
-    end
-
-    local xy = math_floor(entity.position.x / Constants.CHUNK_SIZE) .. "/" .. math_floor(entity.position.y / Constants.CHUNK_SIZE)
-    if (on_biter_base_built[xy]) then return end
-
-    on_biter_base_built[xy] = on_biter_base_built[xy] or event.tick
-    -- log(serpent.block(event.tick))
+    local x = math_floor(entity.position.x / Constants.CHUNK_SIZE)
+    local y = math_floor(entity.position.y / Constants.CHUNK_SIZE)
+    local xy = x .. "/" .. y
 
     local surface_name = surface.name
     storage.surfaces = storage.surfaces or {}
@@ -170,13 +181,12 @@ function entity_controller.on_biter_base_built(event)
 
     storage.surfaces[surface_name].spawner_map = storage.surfaces[surface_name].spawner_map or {}
     local spawner_map = storage.surfaces[surface_name].spawner_map
-    local chunk = spawner_map[xy]
+    spawner_map[xy] = spawner_map[xy] or { x = x, y = y, xy = xy, }
 
-    if (chunk) then
-        chunk.spawner_count = (chunk.spawner_count or 0) + 1
-    end
+    local chunk = spawner_map[xy]
+    if (chunk) then chunk.spawner_count = (chunk.spawner_count or 0) + 1 end
 end
-Event_Handler:register_events(
+Event_Handler:register_event(
 {
     event_name = "on_biter_base_built",
     source_name = "entity_controller.on_biter_base_built",
