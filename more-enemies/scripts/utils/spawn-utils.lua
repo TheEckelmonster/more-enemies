@@ -1,5 +1,8 @@
 local storage
 
+local script = script
+local active_mods = script and script.active_mods or nil
+
 local math_floor = math.floor
 local math_random = math.random
 
@@ -8,8 +11,6 @@ local Constants = Constants
 local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
-local Entity_Validations = require("scripts.validations.entity-validations")
-local get_mod_name = Entity_Validations.get_mod_name
 local Settings_Service = require("scripts.service.settings-service")
 local get_difficulty = Settings_Service.get_difficulty
 local get_do_evolution_factor = Settings_Service.get_do_evolution_factor
@@ -34,7 +35,6 @@ function spawn_utils.clone_entity(entity, optionals)
         },
         type = "unit",
         tick = 0,
-        mod_name = nil,
         surface = nil,
     }
 
@@ -58,7 +58,7 @@ function spawn_utils.clone_entity(entity, optionals)
     if (is_vanilla(optionals.surface_name)) then return end
 
     local use_evolution_factor = get_do_evolution_factor(optionals.surface_name)
-    if (optionals.mod_name and optionals.mod_name == "BREAM") then use_evolution_factor = Settings_Service.get_BREAM_use_evolution_factor() end
+    if (active_mods and active_mods["BREAM"]) then use_evolution_factor = Settings_Service.get_BREAM_use_evolution_factor() end
 
     local evolution_multiplier = 1
     local evolution_factor = 0
@@ -101,7 +101,6 @@ function spawn_utils.clone_entity(entity, optionals)
                 surface = entity.surface.name,
                 force = entity.force
             }),
-            mod_name = get_mod_name(optionals)
         }
     end
 

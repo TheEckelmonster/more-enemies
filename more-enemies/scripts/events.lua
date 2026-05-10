@@ -101,22 +101,15 @@ local to_init_storage = {
     Spawn_Controller,
     Unit_Group_Controller,
     -- Settings_Controller,
-    require("scripts.repositories.attack-group-repository"),
-    require("scripts.repositories.mod-repository"),
-    require("scripts.repositories.more-enemies-repository"),
-    require("scripts.repositories.nth-tick-repository"),
-    require("scripts.repositories.version-repository"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),
     require("scripts.service.spawn-service"),
     require("scripts.service.unit-group-service"),
-    require("scripts.service.version-service"),
     require("scripts.utils.attack-group-utils"),
     require("scripts.utils.difficulty-utils"),
     require("scripts.utils.settings-utils"),
     require("scripts.utils.spawn-utils"),
-    require("scripts.utils.unit-group-utils"),
 }
 
 function to_init_storage.reinit_all(event)

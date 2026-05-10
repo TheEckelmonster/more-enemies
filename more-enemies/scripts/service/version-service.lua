@@ -1,8 +1,5 @@
-local storage
-
 local Log = require("libs.log.log")
 local Version_Data = require("scripts.data.version-data")
-local Version_Repository = require("scripts.repositories.version-repository")
 
 local version_service = {}
 
@@ -26,8 +23,8 @@ function version_service.validate_version(optionals)
         }
     }
 
-    local version_data = Version_Repository.get_version_data()
-    if (not version_data.valid) then return return_val end
+    local version_data = storage.version_data or nil
+    if (not version_data or not version_data.valid) then return return_val end
 
     -- Check the version numbers; initialize if necessary
     if (not version_data.major) then
@@ -59,10 +56,6 @@ function version_service.validate_version(optionals)
     end
 
     return return_val
-end
-
-function version_service.init(__storage)
-    storage = __storage
 end
 
 return version_service

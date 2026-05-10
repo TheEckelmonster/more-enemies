@@ -1,12 +1,11 @@
-local Log = Log
-
 local commands = commands
+
+local Log = Log
 
 local Core_Utils = require("__TheEckelmonster-core-library__.libs.utils.core-utils")
 
 local Constants = require("scripts.constants.constants")
 local Initialization = require("scripts.initialization")
-local More_Enemies_Repository = require("scripts.repositories.more-enemies-repository")
 local Version_Data = require("scripts.data.version-data")
 
 local locals = {}
@@ -85,43 +84,11 @@ function more_enemies_commands.print_clone_counts(event)
     Log.debug("more_enemies_commands.print_clone_counts")
     locals.validate_command(event, function(player)
         Log.info("commands.print_clone_counts", true)
-        local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
-
-        if (more_enemies_data.valid) then
-            for _, planet in pairs(Constants.DEFAULTS.planets) do
-                log("storage.more_enemies.clone[" ..
-                planet.string_val .. "].count.unit: " .. tostring(storage.more_enemies.clone[planet.string_val].unit))
-                player.print("storage.more_enemies.clone[" ..
-                planet.string_val .. "].count.unit: " .. tostring(storage.more_enemies.clone[planet.string_val].unit))
-                log("storage.more_enemies.clone[" ..
-                planet.string_val .. "].count.unit_group: " .. tostring(storage.more_enemies.clone[planet.string_val].unit_group))
-                player.print("storage.more_enemies.clone[" .. planet.string_val .. "].count.unit_group: " .. tostring(storage.more_enemies.clone[planet.string_val].unit_group))
-                log("storage.more_enemies.staged_clone[" .. planet.string_val .. "].count.unit: " .. tostring(storage.more_enemies.staged_clone[planet.string_val].unit))
-                player.print("storage.more_enemies.staged_clone[" .. planet.string_val .. "].count.unit: " .. tostring(storage.more_enemies.staged_clone[planet.string_val].unit))
-                log("storage.more_enemies.staged_clone[" .. planet.string_val .. "].count.unit_group: " .. tostring(storage.more_enemies.staged_clone[planet.string_val].unit_group))
-                player.print("storage.more_enemies.staged_clone[" .. planet.string_val .. "].count.unit_group: " .. tostring(storage.more_enemies.staged_clone[planet.string_val].unit_group))
-                if (script and script.active_mods and script.active_mods["BREAM"]) then
-                    if (more_enemies_data.mod
-                            and more_enemies_data.mod.clone
-                            and more_enemies_data.mod.clone[planet.string_val]
-                            and more_enemies_data.mod.clone[planet.string_val].count ~= nil)
-                    then
-                        log("storage.more_enemies.mod.clone[" .. planet.string_val .. "].count: " .. tostring(storage.more_enemies.mod.clone[planet.string_val].count))
-                        player.print("storage.more_enemies.mod.clone[" .. planet.string_val .. "].count: " .. tostring(storage.more_enemies.mod.clone[planet.string_val].count))
-                    end
-                end
-            end
-        else
-            Log.error("storage is either nil or invalid")
-            player.print(serpent.block("storage is either nil or invalid; command failed"))
-        end
     end)
 end
 
 function more_enemies_commands.version(event)
     locals.validate_command(event, function (player)
-        -- local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
-        local more_enemies_data = storage.more_enemies or More_Enemies_Repository.get_more_enemies_data()
 
         -- if (not more_enemies_data.valid) then
         --     log(serpent.block("storage.more_enemies is nil or invalid; could not obtain version"))
@@ -135,7 +102,7 @@ function more_enemies_commands.version(event)
         --     return
         -- end
 
-        local version_data = more_enemies_data.version_data
+        local version_data = storage.version_data or {}
 
         log(serpent.block("more_enemies mod version: " .. Version_Data.string_val))
         player.print(serpent.block("more_enemies mod version: " .. Version_Data.string_val))
@@ -147,15 +114,8 @@ end
 
 function more_enemies_commands.exterminatus(event)
     locals.validate_command(event, function(player)
-        local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
-
-        if (more_enemies_data.valid) then
-            player.print("Exterminatus: removing all enemies, this may take a moment")
-            Initialization.purge({ exterminatus = true })
-        else
-            Log.error("storage is either nil or invalid")
-            player.print("storage is either nil or invalid; command failed")
-        end
+        player.print("Exterminatus: removing all enemies, this may take a moment")
+        Initialization.purge({ exterminatus = true })
     end)
 end
 
