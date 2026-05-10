@@ -1,8 +1,6 @@
--- local Data = require("scripts.data.data")
 local Difficulty_Data = require("scripts.data.difficulties.difficulty-data")
 local Log = require("libs.log.log")
 
--- local hard_difficulty_data = Data:new()
 local hard_difficulty_data = {}
 
 hard_difficulty_data.order = nil
@@ -18,7 +16,6 @@ function hard_difficulty_data:new(o)
     Log.info(o)
 
     local defaults = {
-        -- order = self.order,
         order = nil,
         name = self.name,
         string_val = self.string_val,
@@ -33,14 +30,12 @@ function hard_difficulty_data:new(o)
 
     obj = Difficulty_Data:new(obj)
 
-    -- setmetatable(self, getmetatable(obj))
     setmetatable(obj, self)
     self.__index = self
 
     return obj
 end
 
--- hard_difficulty_data = hard_difficulty_data:new(hard_difficulty_data)
 setmetatable(hard_difficulty_data, Difficulty_Data)
 hard_difficulty_data.__index = hard_difficulty_data
 

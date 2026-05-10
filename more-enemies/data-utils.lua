@@ -19,7 +19,7 @@ local function pre(self, __self, print_params, ...)
     local token = ""
     while debug.getinfo(i) ~= nil do
         token = debug.getinfo(i, "S").source:match(source_pattern)
-        if (token ~= nil and token ~= "configurable-nukes") then break end
+        if (token ~= nil and token ~= "more-enemies") then break end
         i = i + 1
     end
 

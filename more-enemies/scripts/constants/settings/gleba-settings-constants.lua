@@ -103,6 +103,7 @@ gleba_settings_constants.settings.GLEBA_ATTACK_GROUP_REQUIRE_NEARBY_SPAWNER = {
     setting_type = "runtime-global",
     order = "cbc",
     default_value = true,
+    hidden = true,
 }
 
 -- { Small } --

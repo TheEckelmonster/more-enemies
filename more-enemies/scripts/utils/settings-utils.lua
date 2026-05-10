@@ -1,61 +1,55 @@
 local storage
 
+local script = script
+local active_mods = script and script.active_mods
+
+local Constants = Constants
+
+local Utils = require("__core__.lualib.util")
+local deepcopy = Utils.table.deepcopy
+
 local BREAM_Settings_Constants = require("libs.constants.settings.mods.BREAM.BREAM-settings-constants")
-local Difficulty_Utils = require("scripts.utils.difficulty-utils")
 local Global_Settings_Constants = require("libs.constants.settings.global-settings-constants")
-local Initialization = require("scripts.initialization")
-local Log = require("libs.log.log")
-local More_Enemies_Repository = require("scripts.repositories.more-enemies-repository")
 local Settings_Service = require("scripts.service.settings-service")
+local get_difficulty = Settings_Service.get_difficulty
 local Vanilla_Difficulty_Data = require("scripts.data.difficulties.vanilla-difficulty-data")
 
 local settings_utils = {}
 
+local difficulties = nil
+
 function settings_utils.is_vanilla(surface_name)
     local return_val = true
 
-    -- local more_enemies_data = More_Enemies_Repository.get_more_enemies_data()
-    storage.more_enemies = storage.more_enemies or More_Enemies_Repository.get_more_enemies_data()
-    local more_enemies_data = storage.more_enemies
+    if (not difficulties) then
+        storage.difficulties = storage.difficulties or {}
+        difficulties = storage.difficulties
 
-    -- if (not more_enemies_data.valid) then more_enemies_data = Initialization.reinit() end
-    if (not more_enemies_data.difficulties) then Difficulty_Utils.get_difficulty(surface_name, true) end
-
-    if (
-            not more_enemies_data
-        or not more_enemies_data.difficulties
-        or not more_enemies_data.difficulties[surface_name]
-        or not more_enemies_data.difficulties[surface_name].difficulty
-        or not more_enemies_data.difficulties[surface_name].difficulty.selected_difficulty
-        or more_enemies_data.difficulties[surface_name].difficulty.selected_difficulty.string_val ~= Vanilla_Difficulty_Data.string_val
-    ) then
-        return_val = false
+        difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
     end
+
+    local selected_difficulty = difficulties[surface_name]
+    if (not selected_difficulty or selected_difficulty.string_val ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
 
     if (return_val and Settings_Service.get_clone_unit_setting(surface_name) ~= 1) then return_val = false end
     if (return_val and Settings_Service.get_clone_unit_group_setting(surface_name) ~= 1) then return_val = false end
     if (return_val and Settings_Service.get_maximum_group_size() ~= Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) then return_val = false end
 
     -- Mod added
-    if (return_val and script and script.active_mods and (script.active_mods["BREAM"])) then
+    if (return_val and active_mods and active_mods["BREAM"]) then
         if (return_val and Settings_Service.get_BREAM_difficulty() ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
         if (return_val and Settings_Service.get_BREAM_clone_units() ~= BREAM_Settings_Constants.settings.BREAM_CLONE_UNITS.default_value) then return_val = false end
     end
 
-    -- Log.debug(return_val)
     return return_val
 end
 
 function settings_utils.get_attack_group_blacklist_names()
-    Log.debug("settings_utils.get_attack_group_blacklist_names")
+    -- Log.debug("settings_utils.get_attack_group_blacklist_names")
 
     local return_val = {}
 
     local raw_setting_string = Settings_Service.get_attack_group_blacklist_names()
-
-    if (mods and mods["more-enemies"]) then
-        log(raw_setting_string)
-    end
 
     local setting_string_stripped = raw_setting_string:gsub(" ", "")
 

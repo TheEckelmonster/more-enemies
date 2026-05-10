@@ -10,7 +10,7 @@ settings[#settings+1] = {
     type = "double-setting",
     name = prefix .. "clone-gleba-units",
     setting_type = "runtime-global",
-    order = "dba",
+    order = "c[clone]-c[gleba]-c[clone-units]",
     default_value = 1,
     maximum_value = 11, -- This one goes up to eleven
     minimum_value = 0,
@@ -21,7 +21,7 @@ settings[#settings+1] = {
     type = "double-setting",
     name = prefix .. "clone-gleba-unit-groups",
     setting_type = "runtime-global",
-    order = "dbb",
+    order = "c[clone]-c[gleba]-c[clone-unit-groups]",
     default_value = 1,
     maximum_value = 11, -- This one goes up to eleven
     minimum_value = 0,
@@ -32,7 +32,7 @@ settings[#settings+1] = {
     type = "int-setting",
     name = prefix .. "maximum-number-of-spawned-clones-gleba",
     setting_type = "runtime-global",
-    order = "dzd",
+    order = "c[clone]-c[gleba]-c[maximum-clones-unit]",
     default_value = 400,
     maximum_value = 111111,
     minimum_value = 0,
@@ -43,7 +43,7 @@ settings[#settings+1] = {
     type = "int-setting",
     name = prefix .. "maximum-number-of-unit-group-clones-gleba",
     setting_type = "runtime-global",
-    order = "dze",
+    order = "c[clone]-c[gleba]-c[maximum-clones-unit-groups]",
     default_value = 400,
     maximum_value = 111111,
     minimum_value = 0,
@@ -55,7 +55,7 @@ settings[#settings+1] = {
     type = "bool-setting",
     name = prefix .. "gleba-do-evolution-factor",
     setting_type = "runtime-global",
-    order = "cba",
+    order = "c[clone]-c[gleba]-e[evolution]",
     default_value = true,
 }
 
@@ -64,7 +64,7 @@ settings[#settings+1] = {
     type = "bool-setting",
     name = prefix .. "gleba-do-attack-group",
     setting_type = "runtime-global",
-    order = "cbb",
+    order = "c[clone]-c[gleba]-g[attack-group]",
     default_value = true,
 }
 
@@ -73,7 +73,7 @@ settings[#settings+1] = {
     type = "double-setting",
     name = prefix .. "gleba-attack-group-peace-time",
     setting_type = "runtime-global",
-    order = "cbd",
+    order = "c[clone]-c[gleba]-g[attack-group]-c[peace-time]",
     default_value = 45,
     minimum_value = 0,
 }
@@ -83,19 +83,10 @@ settings[#settings+1] = {
     type = "double-setting",
     name = prefix .. "gleba-spawn-attack-group-probability-modifier",
     setting_type = "runtime-global",
-    order = "cbe",
+    order = "c[clone]-c[gleba]-g[attack-group]-e[peace-time]",
     default_value = 1,
     minimum_value = 0,
     maximum_value = 1111,
-}
-
-settings[#settings+1] = {
-    setting = "GLEBA_ATTACK_GROUP_REQUIRE_NEARBY_SPAWNER",
-    type = "bool-setting",
-    name = prefix .. "gleba-attack-group-require-nearby-spawner",
-    setting_type = "runtime-global",
-    order = "cbc",
-    default_value = true,
 }
 
 return settings

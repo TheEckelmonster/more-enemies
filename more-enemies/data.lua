@@ -1,3 +1,6 @@
+local mods = mods
+
+require("prototypes.custom-events.custom-events")
 require("prototypes.spawners.nauvis")
 
 if (mods and mods["space-age"]) then

@@ -69,16 +69,6 @@ global_settings_constants.settings.SHORT_REQUEST_MAX_STEPS = {
     minimum_value = 0,
 }
 
-global_settings_constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP = {
-    type = "int-setting",
-    name = prefix .. "max-unit-group-size-startup",
-    setting_type = "startup",
-    order = "eed",
-    default_value = 200,
-    maximum_value = 1111,
-    minimum_value = 0,
-}
-
 global_settings_constants.settings.NTH_TICK = {}
 global_settings_constants.settings.NTH_TICK.name = prefix .. "nth-tick"
 global_settings_constants.settings.NTH_TICK.value = 5
@@ -148,6 +138,7 @@ global_settings_constants.settings.MAXIMUM_ATTACK_GROUP_DELAY = {
     setting_type = "runtime-global",
     order = "efa",
     default_value = 1800,
+    maximum_value = 2 ^ 42,
     minimum_value = 0,
 }
 
@@ -157,6 +148,7 @@ global_settings_constants.settings.MINIMUM_ATTACK_GROUP_DELAY = {
     setting_type = "runtime-global",
     order = "efb",
     default_value = 900,
+    maximum_value = 2 ^ 42,
     minimum_value = 0,
 }
 

@@ -1,7 +1,6 @@
-local Data = require("scripts.data.data")
+local Data = require("__TheEckelmonster-core-library__.libs.data.data")
 local Log = require("libs.log.log")
 
--- local difficulty_data = Data:new()
 local difficulty_data = {}
 
 difficulty_data.order = nil
@@ -32,7 +31,6 @@ function difficulty_data:new(o)
 
     obj = Data:new(obj)
 
-    -- setmetatable(difficulty_data, Data)
     setmetatable(obj, self)
     self.__index = self
 

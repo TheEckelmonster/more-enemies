@@ -1,8 +1,6 @@
--- local Data = require("scripts.data.data")
 local Difficulty_Data = require("scripts.data.difficulties.difficulty-data")
 local Log = require("libs.log.log")
 
--- local vanilla_difficulty_data = Data:new()
 local vanilla_difficulty_data = {}
 
 vanilla_difficulty_data.order = nil
@@ -33,14 +31,12 @@ function vanilla_difficulty_data:new(o)
 
     obj = Difficulty_Data:new(obj)
 
-    -- setmetatable(self, getmetatable(obj))
     setmetatable(obj, self)
     self.__index = self
 
     return obj
 end
 
--- vanilla_difficulty_data = vanilla_difficulty_data:new(vanilla_difficulty_data)
 setmetatable(vanilla_difficulty_data, Difficulty_Data)
 vanilla_difficulty_data.__index = vanilla_difficulty_data
 

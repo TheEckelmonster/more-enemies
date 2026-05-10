@@ -1,8 +1,3 @@
--- If already defined, return
-if _attack_group_constants and _attack_group_constants.more_enemies then
-  return _attack_group_constants
-end
-
 local attack_group_constants = {}
 
 -- attack_group_constants.type_blacklist = {
@@ -89,7 +84,7 @@ attack_group_constants.type_blacklist = {
     "explosion",
     "fire",
     "fish",
-    "fluid-turret",
+    -- "fluid-turret",
     -- "fluid-wagon",
     -- "furnace",
     -- "fusion-generator",
@@ -183,9 +178,5 @@ attack_group_constants.type_blacklist_table = {}
 for _, v in pairs(attack_group_constants.type_blacklist) do
     attack_group_constants.type_blacklist_table[v] = 1
 end
-
-attack_group_constants.more_enemies = true
-
-local _attack_group_constants = attack_group_constants
 
 return attack_group_constants

@@ -1,14 +1,11 @@
--- local Data = require("scripts.data.data")
 local Difficulty_Data = require("scripts.data.difficulties.difficulty-data")
 local Log = require("libs.log.log")
 
--- local vanilla_plus_difficulty_data = Data:new()
 local vanilla_plus_difficulty_data = {}
 
 vanilla_plus_difficulty_data.order = nil
 vanilla_plus_difficulty_data.name = "VANILLA_PLUS"
 vanilla_plus_difficulty_data.string_val = "Vanilla+"
--- vanilla_plus_difficulty_data.type = "difficulty_data"
 vanilla_plus_difficulty_data.value = 1.75
 vanilla_plus_difficulty_data.radius = 37.5
 vanilla_plus_difficulty_data.radius_modifier = 1.25
@@ -33,14 +30,12 @@ function vanilla_plus_difficulty_data:new(o)
 
     obj = Difficulty_Data:new(obj)
 
-    -- setmetatable(self, getmetatable(obj))
     setmetatable(obj, self)
     self.__index = self
 
     return obj
 end
 
--- vanilla_plus_difficulty_data = vanilla_plus_difficulty_data:new(vanilla_plus_difficulty_data)
 setmetatable(vanilla_plus_difficulty_data, Difficulty_Data)
 vanilla_plus_difficulty_data.__index = vanilla_plus_difficulty_data
 

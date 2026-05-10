@@ -1,12 +1,9 @@
-local Data = require("scripts.data.data")
+local Data = require("__TheEckelmonster-core-library__.libs.data.data")
 local Log = require("libs.log.log")
 
 local bug_fix_data = {}
-local Bug_Fix_Data = {}
 
 bug_fix_data.value = 0
-bug_fix_data.warned = false
-bug_fix_data.valid = true
 
 function bug_fix_data:new(o)
     Log.debug("bug_fix_data:new")
@@ -14,7 +11,6 @@ function bug_fix_data:new(o)
 
     local defaults = {
         value = bug_fix_data.value,
-        warned = bug_fix_data.warned,
     }
 
     local obj = o or defaults
@@ -23,15 +19,13 @@ function bug_fix_data:new(o)
 
     obj = Data:new(obj)
 
-    setmetatable(self, getmetatable(obj))
     setmetatable(obj, self)
     self.__index = self
 
     return obj
 end
 
--- bug_fix_data = bug_fix_data:new(bug_fix_data)
-Bug_Fix_Data = bug_fix_data:new(Bug_Fix_Data)
+setmetatable(bug_fix_data, Data)
+bug_fix_data.__index = bug_fix_data
 
--- return bug_fix_data
-return Bug_Fix_Data
+return bug_fix_data

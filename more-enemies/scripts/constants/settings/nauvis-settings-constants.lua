@@ -103,6 +103,7 @@ nauvis_settings_constants.settings.NAUVIS_ATTACK_GROUP_REQUIRE_NEARBY_SPAWNER = 
     setting_type = "runtime-global",
     order = "cac",
     default_value = true,
+    hidden = true,
 }
 
 -- { Biters } --

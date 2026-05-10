@@ -1,13 +1,28 @@
--- If already defined, return
-if _global_settings_constants and _global_settings_constants.more_enemies then
-    return _global_settings_constants
-end
+local Constants = require("libs.constants.constants")
 
 local prefix = "more-enemies-"
 
 local global_settings_constants = {}
 
 global_settings_constants.settings = {}
+
+global_settings_constants.settings.NAUVIS_DIFFICULTY = {
+    type = "string-setting",
+    name = prefix .. "nauvis-difficulty",
+    setting_type = "startup",
+    order = "aaa",
+    default_value = "Vanilla",
+    allowed_values = Constants.difficulty.difficulties_array
+}
+
+global_settings_constants.settings.GLEBA_DIFFICULTY = {
+    type = "string-setting",
+    name = prefix .. "gleba-difficulty",
+    setting_type = "startup",
+    order = "aab",
+    default_value = "Vanilla",
+    allowed_values = Constants.difficulty.difficulties_array
+}
 
 global_settings_constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME = {
     type = "int-setting",
@@ -66,16 +81,6 @@ global_settings_constants.settings.SHORT_REQUEST_MAX_STEPS = {
     order = "edd",
     default_value = 1000,
     maximum_value = 11111,
-    minimum_value = 0,
-}
-
-global_settings_constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP = {
-    type = "int-setting",
-    name = prefix .. "max-unit-group-size-startup",
-    setting_type = "startup",
-    order = "eed",
-    default_value = 200,
-    maximum_value = 1111,
     minimum_value = 0,
 }
 
@@ -169,9 +174,5 @@ global_settings_constants.settings.ATTACK_GROUP_BLACKLIST_NAMES = {
     allow_blank = true,
     auto_trim = true,
 }
-
-global_settings_constants.more_enemies = true
-
-local _global_settings_constants = global_settings_constants
 
 return global_settings_constants

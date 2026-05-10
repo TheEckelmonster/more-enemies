@@ -1,8 +1,3 @@
-local mods = mods
-local script = script
-
--- local Util = require("__core__.lualib.util")
-
 -- local Settings_Utils = require("__TheEckelmonster-core-library__.libs.utils.settings-utils")
 
 local __Data_Utils = require("data-utils")

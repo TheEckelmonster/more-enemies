@@ -1,8 +1,3 @@
--- If already defined, return
-if _nauvis_constants and _nauvis_constants.more_enemies then
-  return _nauvis_constants
-end
-
 local nauvis_constants = {}
 
 --
@@ -40,10 +35,5 @@ nauvis_constants.nauvis.spitter.MAX_DEFENSIVE_FRIENDS_AROUND_TO_SPAWN = 5
 
 nauvis_constants.nauvis.spitter.MAX_SPAWNING_COOLDOWN = 360
 nauvis_constants.nauvis.spitter.MIN_SPAWNING_COOLDOWN = 150
-
-
-nauvis_constants.more_enemies = true
-
-local _nauvis_constants = nauvis_constants
 
 return nauvis_constants
