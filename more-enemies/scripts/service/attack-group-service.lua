@@ -19,6 +19,7 @@ local distraction_by_damage = defines.distraction.by_damage
 
 local math_floor = math.floor
 local math_random = math.random
+local table_insert = table.insert
 local table_remove = table.remove
 
 local Data_Utils = Data_Utils
@@ -50,6 +51,19 @@ end
 local delay_min = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MINIMUM_ATTACK_GROUP_DELAY.name, }) or Mod_Settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
 local delay_max = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAXIMUM_ATTACK_GROUP_DELAY.name, }) or Mod_Settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
+
+local BOUNDING_BOX = {{-0.5, -0.5}, {0.5, 0.5},}
+local COLLISION_MASK = {
+    layers = {
+        ["water_tile"] = true,
+        ["object"] = true,
+        ["empty_space"] = true,
+        ["lava_tile"] = true,
+        ["cliff"] = true,
+        ["out_of_map"] = true,
+    }
+}
+local PATHFINDER_FLAGS = { allow_destroy_friendly_entities = true, allow_paths_through_own_entities = true, }
 
 local attack_group_service = {}
 
@@ -135,40 +149,73 @@ function attack_group_service.do_random_attack_group(params)
         return
     end
 
-    -- Log.error("random: target_entity")
-    -- Log.error(target_entity)
-    -- game.print({ "messages.entity-gps", target_entity.name, target_entity.position.x, target_entity.position.y, target_entity.surface.name })
+    local target_position = target_entity.position
 
-    local unit_group = enemies[1].surface.create_unit_group({ position = enemies[1].position})
-    if (not unit_group or not unit_group.valid) then return end
+    local path_id = enemies[1].surface.request_path({
+        bounding_box = BOUNDING_BOX,
+        collision_mask = COLLISION_MASK,
+        start = enemies[1].position,
+        goal = target_position,
+        force = enemies[1].force,
+        radius = 12,
+        pathfinder_flags = PATHFINDER_FLAGS,
+        can_open_gates = false,
+        path_resolution_modifier = -1,
+        max_gap_distance = 0,
 
-    if (target_entity and target_entity.valid) then
-        local add_member = unit_group.add_member
-        for i, v in ipairs(enemies) do
-            if (v and v.valid) then
-                v.release_from_spawner()
-                v.ai_settings.allow_try_return_to_spawner = false
-                v.ai_settings.join_attacks = true
-                add_member(v)
-            end
-            if (i >= limit or i >= max_unit_group_size) then break end
+    })
+
+    -- log(serpent.block(path_id))
+
+    storage.unit_groups = storage.unit_groups or {}
+    local unit_groups = storage.unit_groups
+    unit_groups[path_id] = { enemies = {}, target_position = target_position, limit = limit, path_id = path_id, }
+
+    local unit_group_enemies = unit_groups[path_id].enemies
+    for i = 1, #enemies, 1 do
+        if (i >= limit or i >= max_unit_group_size) then break end
+        if (enemies[i] and enemies[i].valid) then
+            table_insert(unit_group_enemies, enemies[i].unit_number)
+        else
+            table_remove(enemies, i)
         end
-
-        unit_group.set_command({
-            type = command_attack_area,
-            destination = target_entity.position,
-            radius = 21,
-            distraction = distraction_by_damage,
-        })
-        unit_group.release_from_spawner()
-        unit_group.start_moving()
-        -- Log.error("unit group released")
-    else
-        Log.error("no target; destroying")
-        unit_group.destroy()
     end
 
-    attack_group.radius = attack_group.radius ^ 0.5
+
+    -- -- Log.error("random: target_entity")
+    -- -- Log.error(target_entity)
+    -- -- game.print({ "messages.entity-gps", target_entity.name, target_entity.position.x, target_entity.position.y, target_entity.surface.name })
+
+    -- local unit_group = enemies[1].surface.create_unit_group({ position = enemies[1].position})
+    -- if (not unit_group or not unit_group.valid) then return end
+
+    -- if (target_entity and target_entity.valid) then
+    --     local add_member = unit_group.add_member
+    --     for i, v in ipairs(enemies) do
+    --         if (v and v.valid) then
+    --             v.release_from_spawner()
+    --             v.ai_settings.allow_try_return_to_spawner = false
+    --             v.ai_settings.join_attacks = true
+    --             add_member(v)
+    --         end
+    --         if (i >= limit or i >= max_unit_group_size) then break end
+    --     end
+
+    --     unit_group.set_command({
+    --         type = command_attack_area,
+    --         destination = target_position,
+    --         radius = 21,
+    --         distraction = distraction_by_damage,
+    --     })
+    --     unit_group.release_from_spawner()
+    --     unit_group.start_moving()
+    --     -- Log.error("unit group released")
+    -- else
+    --     Log.error("no target; destroying")
+    --     unit_group.destroy()
+    -- end
+
+    -- attack_group.radius = attack_group.radius ^ 0.5
 
     if (delay_min > delay_max) then delay_min = delay_max end
     if (delay_max < delay_min ) then delay_max = delay_min end
@@ -181,6 +228,78 @@ function attack_group_service.do_random_attack_group(params)
 
     attack_group.tick = (params.tick or 0) + delay
 end
+
+function attack_group_service.on_script_path_request_finished(event)
+    -- log(serpent.block(event))
+
+    if (not event) then return end
+
+    -- log(serpent.block(event.id))
+    -- log(serpent.block(event.try_again_later))
+    if (event.try_again_later) then return end
+
+    local id = event.id
+    if (not id) then return end
+
+    storage.unit_groups = storage.unit_groups or {}
+
+    local requesting_unit_group = storage.unit_groups[id]
+    if (not requesting_unit_group) then return end
+
+    storage.unit_groups[id] = nil
+    if (not event.path) then return end
+
+    local get_entity_by_unit_number = (game or set_game()).get_entity_by_unit_number
+
+    local enemy = get_entity_by_unit_number(requesting_unit_group.enemies[1])
+
+    if (not enemy or not enemy.valid) then
+        local enemies = requesting_unit_group.enemies
+        for i = 2, #enemies, 1 do
+            enemy = enemies[i]
+            if (enemy and enemy.valid) then goto continue end
+        end
+        if (not enemy or not enemy.valid) then return end
+        ::continue::
+    end
+
+    local unit_group = enemy.surface.create_unit_group({ position = enemy.position})
+    if (not unit_group or not unit_group.valid) then return end
+
+    local limit = requesting_unit_group.limit or 0
+    local add_member = unit_group.add_member
+    for i, unit_number in ipairs(requesting_unit_group.enemies or {}) do
+        enemy = get_entity_by_unit_number(unit_number)
+
+        if (enemy and enemy.valid) then
+            enemy.release_from_spawner()
+            enemy.ai_settings.allow_try_return_to_spawner = false
+            enemy.ai_settings.join_attacks = true
+            add_member(enemy)
+        end
+        if (i >= limit or i >= max_unit_group_size) then break end
+    end
+
+    unit_group.set_command({
+        type = command_attack_area,
+        destination = requesting_unit_group.target_position,
+        radius = 21,
+        distraction = distraction_by_damage,
+    })
+    unit_group.release_from_spawner()
+    unit_group.start_moving()
+    -- Log.error("unit group released")
+
+    -- Log.error("random: target_entity")
+    -- -- Log.error(target_entity)
+    -- game.print({ "messages.entity-gps", "", requesting_unit_group.target_position.x, requesting_unit_group.target_position.y, unit_group.surface.name })
+end
+Event_Handler:register_event({
+    event_name = "on_script_path_request_finished",
+    source_name = "attack_group_service.on_script_path_request_finished",
+    func_name = "attack_group_service.on_script_path_request_finished",
+    func = attack_group_service.on_script_path_request_finished,
+})
 
 function attack_group_service.on_runtime_mod_setting_changed(event)
     -- Log.debug("spawn_service.on_runtime_mod_setting_changed")
