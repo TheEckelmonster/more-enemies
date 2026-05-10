@@ -11,6 +11,7 @@ Date: 2026-05-10
       -> 0.7.3: ranges from 0.006 (beginning of a new run) to averaging ~0.03-0.1 (on Insanity difficulty)
     - Updated base and (optional) SA version requirements to 2.0.76
     - Added TheEckelmonster-core-library as a required dependency
+    - Updated license from MIT to CC BY-NC-SA
   Todo:
     - Solution for enemies that have no valid path to their target using up UPS
       -> Have a potential solution planned - working on it
