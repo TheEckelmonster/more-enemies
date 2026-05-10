@@ -1,4 +1,5 @@
-require("libs.log.log-settings")
+local mods = mods
+
 require("settings.nauvis.nauvis")
 require("settings.global")
 
@@ -10,3 +11,5 @@ if (mods) then
     if (mods["old_biters_remastered"]) then require("settings.mods.proto-biters") end
     if (mods["Toxic_biters"]) then require("settings.mods.toxic-biters") end
 end
+
+require("settings.runtime-global.runtime-global-settings")

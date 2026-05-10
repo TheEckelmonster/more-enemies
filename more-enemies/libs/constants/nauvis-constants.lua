@@ -13,10 +13,10 @@ nauvis_constants.nauvis = {}
 nauvis_constants.nauvis.string_val = "nauvis"
 
 nauvis_constants.nauvis.categories = {
-  SMALL = "small",
-  MEDIUM = "medium",
-  BIG = "big",
-  BEHEMOTH = "behemoth"
+    SMALL = { name = "small", value = 10 },
+    MEDIUM = { name = "medium", value = 20 },
+    BIG = { name = "big", value = 40 },
+    BEHEMOTH = { name = "behemoth", value = 80 },
 }
 
 --
