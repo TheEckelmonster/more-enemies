@@ -1,408 +1,218 @@
--- If already defined, return
-if _attack_group_service and _attack_group_service.more_enemies then
-  return _attack_group_service
+local storage
+local game
+local get_surface
+
+local function set_game(__game)
+    game = __game or _ENV.game
+    get_surface = game.get_surface
+
+    return game
 end
 
-local Attack_Group_Constants = require("libs.constants.attack-group-constants")
-local Attack_Group_Repository = require("scripts.repositories.attack-group-repository")
-local Constants = require("libs.constants.constants")
-local Global_Settings_Constants = require("libs.constants.settings.global-settings-constants")
-local Log = require("libs.log.log")
-local Settings_Service = require("scripts.service.settings-service")
-local Settings_Utils = require("scripts.utils.settings-utils")
-local Spawn_Constants = require("libs.constants.spawn-constants")
-local Unit_Group_Utils = require("scripts.utils.unit-group-utils")
+local ipairs = ipairs
+local type = type
 
-local locals = {}
+local defines = defines
+local command_attack_area = defines.command.attack_area
+local command_build_base = defines.command.build_base
+local distraction_by_damage = defines.distraction.by_damage
+
+local math_floor = math.floor
+local math_random = math.random
+local table_remove = table.remove
+
+local Data_Utils = Data_Utils
+local Constants = Constants
+local Mod_Settings = Mod_Settings
+
+local Utils = require("__core__.lualib.util")
+local deepcopy = Utils.table.deepcopy
+
+local Log = Log
+
+local Attack_Group_Utils = require("scripts.utils.attack-group-utils")
+local get_enemy = Attack_Group_Utils.get_enemy
+local get_target_entity = Attack_Group_Utils.get_target_entity
+local _Settings_Service = Settings_Service
+local get_runtime_global_setting = _Settings_Service.get_runtime_global_setting
+local Settings_Service = require("scripts.service.settings-service")
+local get_attack_group_peace_time = Settings_Service.get_attack_group_peace_time
+local get_difficulty = Settings_Service.get_difficulty
+local get_maximum_attack_group_delay = Settings_Service.get_maximum_attack_group_delay
+local get_minimum_attack_group_delay = Settings_Service.get_minimum_attack_group_delay
+local get_spawn_attack_group_probability_modifier = Settings_Service.get_spawn_attack_group_probability_modifier
+
+local attack_group_peace_time = {}
+for name, _ in pairs(Constants.DEFAULTS.planets) do
+    attack_group_peace_time[name] = get_attack_group_peace_time(name) * Constants.time.TICKS_PER_MINUTE
+end
+
+local delay_min = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MINIMUM_ATTACK_GROUP_DELAY.name, }) or Mod_Settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
+local delay_max = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAXIMUM_ATTACK_GROUP_DELAY.name, }) or Mod_Settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
+local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
 
 local attack_group_service = {}
 
-attack_group_service.attack_group = {}
+function attack_group_service.do_random_attack_group(params)
+    -- Log.debug("attack_group_service.do_random_attack_group")
+    -- Log.info(params)
 
-function attack_group_service.do_attack_group(planet)
-    Log.debug("attack_group_service.do_attack_group")
-    Log.info(planet)
-
-    if (not game or not game.surfaces) then return end
-    if (type(planet) ~= "table" or type(planet.string_val) ~= "string") then return end
-    local surface = game.surfaces[planet.string_val]
-    if (not surface or not surface.valid) then return end
-
-    if (not attack_group_service.attack_group[planet.string_val]) then
-        local attack_group_data = Attack_Group_Repository.get_attack_group_data(planet.string_val)
-        if (not attack_group_data.peace_time_tick or attack_group_data.peace_time_tick == nil) then
-            local peace_time_tick = Settings_Service.get_attack_group_peace_time(planet.string_val) * Constants.time.TICKS_PER_MINUTE
-            if (type(attack_group_data.surface) == "table" and attack_group_data.surface.index == 1) then
-                attack_group_data.peace_time_tick = peace_time_tick
-                attack_group_data.tick = peace_time_tick
-            else
-                attack_group_data.peace_time_tick = peace_time_tick
-                attack_group_data.tick = attack_group_data.created + peace_time_tick
-            end
-        end
-
-        attack_group_service.attack_group[planet.string_val] = attack_group_data
-    end
-
-    if (attack_group_service.attack_group and attack_group_service.attack_group[planet.string_val] and attack_group_service.attack_group[planet.string_val].tick and game and game.tick >= attack_group_service.attack_group[planet.string_val].tick) then
-
-        local surface = game.surfaces[planet.string_val]
-        if (surface and surface.valid) then
-
-            local attack_group = attack_group_service.attack_group[planet.string_val]
-
-            local chunk = locals.get_new_chunk(planet, surface.get_random_chunk())
-
-            if (chunk) then
-                Log.debug(planet.string_val)
-                Log.debug(chunk)
-                Log.debug(attack_group.radius)
-
-                local enemies = locals.get_enemy(surface, chunk, attack_group.radius)
-                if (enemies and enemies[1] and enemies[1].valid) then
-                    Log.debug(enemies)
-
-                    if (Settings_Service.get_attack_group_require_nearby_spawner(planet.string_val)) then
-                        local spawner = Unit_Group_Utils.get_spawner(enemies[1], 4 * attack_group.radius, 1)
-
-                        if (not spawner or spawner == nil) then goto finally end
-                    end
-
-                    local evolution_factor = enemies[1].force.get_evolution_factor(enemies[1].surface)
-
-                    local rand = math.random()
-
-                    local probability_modifier = Settings_Service.get_spawn_attack_group_probability_modifier(planet.string_val)
-
-                    local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[Settings_Service.get_difficulty(planet.string_val)]]
-
-                    -- Maximum probability of an attack group spawning at 100% (1) evolution factor
-                    local max_probability = 1 - (1 / selected_difficulty.value)
-
-                    if (max_probability < 0) then max_probability = 0 end
-
-                    max_probability = max_probability * probability_modifier
-
-                    local threshold = max_probability * evolution_factor
-                    Log.debug(threshold)
-                    Log.debug(rand)
-
-                    if (rand >= threshold) then
-                        -- return
-                        goto finally
-                    end
-
-                    local unit_group = surface.create_unit_group({ position = enemies[1].position})
-                    if (unit_group and unit_group.valid) then
-
-                        local limit = selected_difficulty.value + math.random(#enemies)
-
-                        for k, v in pairs(enemies) do
-                            if (v and v.valid) then
-                                v.release_from_spawner()
-                                v.ai_settings.allow_try_return_to_spawner = false
-                                v.ai_settings.join_attacks = true
-                                unit_group.add_member(v)
-                            end
-                            if (k >= limit) then break end
-                        end
-
-                        local target_entity = locals.get_target_entity(unit_group, attack_group.radius)
-
-                        if (target_entity and target_entity.valid) then
-
-                            attack_group.chunks[chunk.x][chunk.y].tick = game.tick + 3600
-
-                            local x = enemies[1].position.x / 32
-                            x = x - x % 1
-
-                            local y = enemies[1].position.y / 32
-                            y = y - y % 1
-
-                            if (x > 0 and x > attack_group.max_distance.pos_x) then attack_group.max_distance.pos_x = x end
-                            if (y > 0 and y > attack_group.max_distance.pos_y) then attack_group.max_distance.pos_y = y end
-
-                            if (x < 0 and x < attack_group.max_distance.neg_x) then attack_group.max_distance.neg_x = x end
-                            if (y < 0 and y < attack_group.max_distance.neg_y) then attack_group.max_distance.neg_y = y end
-
-                            if (not attack_group.chunks[x]) then attack_group.chunks[x] = {} end
-                            if (not attack_group.chunks[x][y]) then attack_group.chunks[x][y] = { tick = 0, count = 1 } end
-                            attack_group.chunks[x][y].tick = game.tick + 18000
-
-                            Log.debug("target_entity")
-                            Log.debug(target_entity)
-
-                            -- Log.info(attack_group.chunks)
-                            -- log(serpent.block(attack_group.chunks))
-
-                            if (target_entity and target_entity.valid) then
-
-                                local radius_mult = math.random() + 0.25
-
-                                unit_group.set_command({
-                                    type = defines.command.attack_area,
-                                    destination = target_entity.position,
-                                    -- radius = 32 * 0.25, -- TODO: Make this configurable,
-                                    radius = 32 * radius_mult, -- TODO: Make this configurable,
-                                    distraction = defines.distraction.by_damage,
-                                })
-                                unit_group.release_from_spawner()
-                                unit_group.start_moving()
-                                Log.debug("unit group released")
-                            else
-                                Log.warn("no target; destroying")
-                                unit_group.destroy()
-                            end
-
-                            if (attack_group.radius > 2) then
-                                attack_group.radius = attack_group.radius / 2
-                            end
-                        end
-                    end
-                end
-
-                ::finally::
-
-                local delay_min = Settings_Service.get_minimum_attack_group_delay()
-                local delay_max = Settings_Service.get_maximum_attack_group_delay()
-
-                if (delay_min > delay_max) then
-                    delay_min = Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
-                end
-
-                if (delay_max < delay_min ) then
-                    delay_max = Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
-                end
-
-                local delay = math.random(delay_min, delay_max)
-                -- log("error: delay")
-                Log.debug(delay)
-
-                local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[Settings_Service.get_difficulty(planet.string_val)]]
-                local difficulty_val = Constants.difficulty.INSANITY.value
-
-                if (selected_difficulty and selected_difficulty.value and selected_difficulty.value > 0) then
-                    delay = delay / selected_difficulty.value
-                    difficulty_val = selected_difficulty.value
-
-                    Log.debug(delay)
-                end
-
-                if (attack_group.radius < delay * difficulty_val) then
-                    attack_group.radius = 1.1 * attack_group.radius + 1
-                    if (attack_group.radius > Constants.CHUNK_SIZE * 8) then attack_group.radius = Constants.CHUNK_SIZE * 8 end
-                end
-                attack_group.tick = game.tick + delay
-            end
-        end
-    end
-end
-
-function locals.get_new_chunk(planet, chunk, depth)
-    if (not planet or planet == nil) then return end
-    if (not chunk or chunk == nil) then return end
-    if (not depth or depth == nil) then depth = 1 end
-
-    if (depth > 12) then
-        Log.warn("could not find a new chunk")
+    if (not params) then return end
+    if (not params.attack_group) then return end
+    local attack_group = params.attack_group
+    if (not attack_group.tick) then
+        attack_group.tick = params.tick or 0
         return
     end
 
-    local attack_group = attack_group_service.attack_group[planet.string_val]
-    if (not attack_group) then return end
+    if (not params.surface_name) then return end
+    local surface_name = params.surface_name
 
-    if (chunk.x > 0 and chunk.x > attack_group.max_distance.pos_x) then attack_group.max_distance.pos_x = chunk.x end
-    if (chunk.y > 0 and chunk.y > attack_group.max_distance.pos_y) then attack_group.max_distance.pos_y = chunk.y end
+    local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+    if (not surface or not surface.valid) then return end
 
-    if (chunk.x < 0 and chunk.x < attack_group.max_distance.neg_x) then attack_group.max_distance.neg_x = chunk.x end
-    if (chunk.y < 0 and chunk.y < attack_group.max_distance.neg_y) then attack_group.max_distance.neg_y = chunk.y end
+    storage.surfaces = storage.surfaces or {}
+    storage.surfaces[surface_name] = storage.surfaces[surface_name] or {}
+    attack_group.chunks = attack_group.chunks or deepcopy(storage.surfaces[surface_name].chunks)
 
-
-    local neg_x = -1
-
-    if (not attack_group.max_distance.neg_x or attack_group.max_distance.neg_x == nil) then
-        attack_group.max_distance.neg_x = -1
+    local chunks = attack_group.chunks or {}
+    if (#chunks < 1) then
+        attack_group.chunks = deepcopy(storage.surfaces[surface_name].chunks)
+        return
     end
+    local chunk = table_remove(chunks, math_random(#chunks))
+    if (not chunk) then return end
 
-    if (attack_group.max_distance.neg_x) then
-        neg_x = attack_group.max_distance.neg_x
-    end
+    local enemies = get_enemy({ surface_name = surface_name, chunk = chunk, tick = params.tick or 0, }) or {}
+    if (not enemies[1] or not enemies[1].valid) then return end
 
-    local pos_x = 1
+    storage.difficulties = storage.difficulties or {}
+    storage.difficulties[surface_name] = storage.difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
 
-    if (not attack_group.max_distance.pos_x or attack_group.max_distance.pos_x == nil) then
-        attack_group.max_distance.pos_x = 1
-    end
+    local selected_difficulty = storage.difficulties[surface_name]
+    if (not selected_difficulty) then return end
 
-    if (attack_group.max_distance.pos_x) then
-        pos_x = attack_group.max_distance.pos_x
-    end
+    local evolution_factor = enemies[1].force.get_evolution_factor(enemies[1].surface)
+    evolution_factor = evolution_factor ^ (1 / selected_difficulty.value)
 
-    local x = math.random(neg_x or -1, pos_x or 1)
-    x = x - x % 1
+    -- Maximum probability of an attack group spawning at 100% (1) evolution factor
+    local max_probability = 1 - (1 / selected_difficulty.value)
 
-    local neg_y = -1
+    if (max_probability < 0) then max_probability = 0 end
+    max_probability = max_probability * get_spawn_attack_group_probability_modifier(surface_name)
 
-    if (not attack_group.max_distance.neg_y or attack_group.max_distance.neg_y == nil) then
-        attack_group.max_distance.neg_y = -1
-    end
+    local threshold = max_probability * evolution_factor
+    selected_difficulty.retries = selected_difficulty.retries or math_floor((selected_difficulty.value * 3) ^ 0.5)
 
-    if (attack_group.max_distance.neg_y) then
-        neg_y = attack_group.max_distance.neg_y
-    end
-
-    local pos_y = 1
-
-    if (not attack_group.max_distance.pos_y or attack_group.max_distance.pos_y == nil) then
-        attack_group.max_distance.pos_y = 1
-    end
-
-    if (attack_group.max_distance.pos_y) then
-        pos_y = attack_group.max_distance.pos_y
-    end
-
-    local y = math.random(neg_y or -1, pos_y or 1)
-    y = y - y % 1
-
-    chunk.x = x
-    chunk.y = y
-
-    local surface = game.surfaces[planet.string_val]
-
-    if (surface and surface.valid and not surface.is_chunk_generated({ x, y })) then
-        if (x > 0) then
-            if (attack_group.max_distance.pos_x > 2) then
-            attack_group.max_distance.pos_x = attack_group.max_distance.pos_x / 2
-            end
-        else
-            if (attack_group.max_distance.neg_x > 2) then
-            attack_group.max_distance.neg_x = attack_group.max_distance.neg_x / 2
-            end
+    local proceed = false
+    for i = 1, selected_difficulty.retries, 1 do
+        if (math_random() < threshold) then
+            proceed = true
+            break
         end
-
-        if (y > 0) then
-            if (attack_group.max_distance.pos_y > 2) then
-            attack_group.max_distance.pos_y = attack_group.max_distance.pos_y / 2
-            end
-        else
-            if (attack_group.max_distance.neg_y > 2) then
-            attack_group.max_distance.neg_y = attack_group.max_distance.neg_y / 2
-            end
-        end
-
-        Log.warn("chunk not generated - getting new chunk")
-        return locals.get_new_chunk(planet, surface.get_random_chunk(), depth + 1)
+        threshold = threshold ^ 0.9
     end
 
-    if (not attack_group.chunks[x]) then
-        attack_group.chunks[x] = {}
-        attack_group.chunks[x][y] = {
-            tick = game.tick + 9000,
-            count = 1,
-        }
+    if (not proceed) then return end
+
+    local limit = 2 * (selected_difficulty.attack_group_limit or (function (param)
+        selected_difficulty.attack_group_limit = param
+        return param
+    end)(selected_difficulty.value * selected_difficulty.radius_modifier)) * evolution_factor + math_random(#enemies)
+
+    local target_entities = get_target_entity({
+        chunk = chunk,
+        surface = surface,
+        limit = 1 + limit * evolution_factor,
+    }) or {}
+
+    local target_entity = nil
+    if (#target_entities > 0) then
+        -- Log.error("target_entities = " .. #target_entities)
+        target_entity = target_entities[math_random(#target_entities)]
+        if (not target_entity or not target_entity.valid) then return end
     else
-        if (not attack_group.chunks[x][y]) then
-            attack_group.chunks[x][y] = {
-                tick = game.tick + 9000,
-                count = 1
-            }
-        elseif (type(attack_group.chunks[x][y].tick) == "number" and game.tick >= attack_group.chunks[x][y].tick) then
-            if (attack_group.chunks[x][y].count > 1) then
-                attack_group.chunks[x][y].tick = game.tick + 36000 / attack_group.chunks[x][y].count
-            else
-                attack_group.chunks[x][y].tick = game.tick + 36000
-            end
-
-            if (attack_group.chunks[x][y].count > 2) then
-                attack_group.chunks[x][y].count = attack_group.chunks[x][y].count / 2
-            end
-        else
-            attack_group.chunks[x][y].count = attack_group.chunks[x][y].count + 1
-
-            Log.debug("getting new chunk")
-
-            attack_group.max_distance.pos_x = attack_group.max_distance.pos_x + 1
-            attack_group.max_distance.pos_y = attack_group.max_distance.pos_y + 1
-            attack_group.max_distance.neg_x = attack_group.max_distance.neg_x + 1
-            attack_group.max_distance.neg_y = attack_group.max_distance.neg_y + 1
-
-            return locals.get_new_chunk(planet, surface.get_random_chunk(), depth + 1)
-        end
-    end
-
-    return chunk
-end
-
-function locals.get_enemy(surface, chunk, radius, depth)
-    if (not surface or not surface.valid) then return end
-    if (not chunk or chunk == nil) then return end
-    if (not radius or radius == nil) then radius = 1 end
-    if (not depth or depth == nil) then depth = 1 end
-
-    if (depth > 12) then
-        Log.warn("could not find an enemy")
         return
     end
 
-    local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[Settings_Service.get_difficulty(surface.name)]]
+    -- Log.error("random: target_entity")
+    -- Log.error(target_entity)
+    -- game.print({ "messages.entity-gps", target_entity.name, target_entity.position.x, target_entity.position.y, target_entity.surface.name })
 
-    local limit = selected_difficulty.value + (selected_difficulty.value * selected_difficulty.value)
+    local unit_group = enemies[1].surface.create_unit_group({ position = enemies[1].position})
+    if (not unit_group or not unit_group.valid) then return end
 
-    local enemies = surface.find_entities_filtered({
-        position = { x = chunk.x * 32, y = chunk.y * 32 },
-        radius = 4 * radius * selected_difficulty.radius_modifier,
-        name = Spawn_Constants.name,
-        force = "enemy",
-        limit = limit,
-    })
+    if (target_entity and target_entity.valid) then
+        local add_member = unit_group.add_member
+        for i, v in ipairs(enemies) do
+            if (v and v.valid) then
+                v.release_from_spawner()
+                v.ai_settings.allow_try_return_to_spawner = false
+                v.ai_settings.join_attacks = true
+                add_member(v)
+            end
+            if (i >= limit or i >= max_unit_group_size) then break end
+        end
 
-    if (not enemies or not enemies[1]) then
-        return locals.get_enemy(surface, chunk, 1.1 * radius + selected_difficulty.radius_modifier, depth + 1)
+        unit_group.set_command({
+            type = command_attack_area,
+            destination = target_entity.position,
+            radius = 21,
+            distraction = distraction_by_damage,
+        })
+        unit_group.release_from_spawner()
+        unit_group.start_moving()
+        -- Log.error("unit group released")
+    else
+        Log.error("no target; destroying")
+        unit_group.destroy()
     end
 
-    return enemies
+    attack_group.radius = attack_group.radius ^ 0.5
+
+    if (delay_min > delay_max) then delay_min = delay_max end
+    if (delay_max < delay_min ) then delay_max = delay_min end
+
+    local delay = math_random(delay_min, delay_max)
+
+    if (selected_difficulty and selected_difficulty.value and selected_difficulty.value > 0) then
+        delay = delay / ((selected_difficulty.radius_modifier ^ 1.5) * (0.5 + ((evolution_factor ^ 0.75) / 2)))
+    end
+
+    attack_group.tick = (params.tick or 0) + delay
 end
 
-function locals.get_target_entity(unit_group, radius, depth)
-    if (not unit_group or not unit_group.valid) then return end
-    if (not unit_group.surface or not unit_group.surface.valid) then return end
-    if (not radius or radius == nil) then radius = 1 end
-    if (not depth or depth == nil) then depth = 1 end
+function attack_group_service.on_runtime_mod_setting_changed(event)
+    -- Log.debug("spawn_service.on_runtime_mod_setting_changed")
+    -- Log.info(event)
 
-    if (depth > 12) then return end
-    if (radius > Constants.CHUNK_SIZE * 16 and depth > 1) then return end
+    if (not event.setting or type(event.setting) ~= "string") then return end
+    if (not event.setting_type or type(event.setting_type) ~= "string") then return end
 
-    local names = {}
-    local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
+    if (not (event.setting:find("more-enemies-", 1, true) == 1)) then return end
 
-    if (blacklist_names) then
-        for _, v in pairs(blacklist_names) do
-            table.insert(names, v)
+    if (event.setting == Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name) then
+        max_unit_group_size = get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, reindex = true, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
+    elseif (event.setting == Mod_Settings.MAXIMUM_ATTACK_GROUP_DELAY.name) then
+        delay_min = get_minimum_attack_group_delay()
+    elseif (event.setting == Mod_Settings.MINIMUM_ATTACK_GROUP_DELAY.name) then
+        delay_max = get_maximum_attack_group_delay()
+    elseif (event.setting:find("-attack-group-peace-time", -24, true)) then
+        local name = event.setting:match("more%-enemies%-([%w]+)%-attack%-group%-peace%-time")
+        if (name and attack_group_peace_time[name:lower()] ~= nil) then
+            attack_group_peace_time[name:lower()] = get_attack_group_peace_time(name:lower()) * Constants.time.TICKS_PER_MINUTE
         end
     end
-
-    if (next(names, nil) == nil) then names = nil end
-
-    local selected_difficulty = Constants.difficulty[Constants.difficulty.difficulties[Settings_Service.get_difficulty(unit_group.surface.name)]]
-
-    local targets = unit_group.surface.find_entities_filtered({
-        position = unit_group.position,
-        radius = 16 * radius * selected_difficulty.radius_modifier + depth,
-        name = names,
-        type = Attack_Group_Constants.type_blacklist,
-        limit = 1,
-        force = { "enemy", "neutral" },
-        invert = true,
-    })
-
-    if (not targets or not targets[1]) then return locals.get_target_entity(unit_group, 1.1 * radius + selected_difficulty.radius_modifier, depth + 1) end
-
-    Log.debug("found 'em")
-    return targets[1]
 end
+Event_Handler:register_event({
+    event_name = "on_runtime_mod_setting_changed",
+    source_name = "attack_group_service.on_runtime_mod_setting_changed",
+    func_name = "attack_group_service.on_runtime_mod_setting_changed",
+    func = attack_group_service.on_runtime_mod_setting_changed,
+})
 
-attack_group_service.more_enemies = true
-
-local _attack_group_service = attack_group_service
+function attack_group_service.init(__storage)
+    storage = __storage
+end
 
 return attack_group_service

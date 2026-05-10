@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.3
+Date: 2026-05-10
+  Bug Fixes:
+    - Fixed multiplayer desync when proactive attack groups attempt to form
+  Misc:
+    - Above desync fix instigated a near total-rewrite of the runtime cloning logic
+      -> Performance has improved, significantly
+      -> Was able to host a MP server on Insanity difficulty, and still maintain a stable 60 UPS
+      -> 0.7.2: ranged from at best 0.1 (beginning of a new run), to 0.3 UPS, but could/would spike consistently to/above 1.0 UPS (on Hard difficulty)
+      -> 0.7.3: ranges from 0.006 (beginning of a new run) to averaging ~0.03-0.1 (on Insanity difficulty)
+    - Updated base and (optional) SA version requirements to 2.0.76
+    - Added TheEckelmonster-core-library as a required dependency
+  Todo:
+    - Solution for enemies that have no valid path to their target using up UPS
+      -> Have a potential solution planned - working on it
+    - Review/update commands in light of the above rewrite/changes
+---------------------------------------------------------------------------------------------------
 Version: 0.7.2
 Date: 2025-08-11
   Bug Fixes:
