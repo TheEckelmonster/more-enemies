@@ -1,22 +1,25 @@
 local storage
+local surface_creation
+
 local game
 local get_surface
 
-local pairs = pairs
+local function set_game(__game, __storage)
+    storage = __storage or _ENV.storage
+    storage.surface_creation = storage.surface_creation or {}
+    surface_creation = storage.surface_creation
 
-local function set_game(__game)
     game = __game or _ENV.game
     get_surface = game.get_surface
+
     return game
 end
 
-local Constants = Constants
 local Log = Log
 
-local Valid_Planets = {}
-for _, planet in pairs(Constants.DEFAULTS.planets) do Valid_Planets[planet.string_val] = 1 end
-
 local planet_service = {}
+planet_service.name = "planet_service"
+planet_service.set_game = set_game
 
 function planet_service.on_surface_created(event)
     -- Log.debug("planet_service.on_surface_created")
@@ -31,10 +34,9 @@ function planet_service.on_surface_created(event)
     if (not surface or not surface.valid) then return end
 
     local surface_name = surface.name
-    if (not Valid_Planets[surface_name]) then return end
 
-    storage.surface_creation = storage.surface_creation or {}
-    storage.surface_creation[surface_name] = event.tick
+    surface_creation = surface_creation or set_game() and surface_creation
+    surface_creation[surface_name] = event.tick
 end
 
 function planet_service.init(__storage)
