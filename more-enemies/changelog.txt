@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.4
+Date: 2026-05-12
+  Bug Fixes:
+    - Fixed runtime error when biter-factions-ng was present (thanks to Shuby for the report)
+    - Fixed a few settings being conflated/ignored
+    - Implemented a solution for enemies that have no valid path to their target using up UPS (thanks for firemonster2112 for the suggestion/motivation)
+      -> Potential attack groups request a path from the game engine
+      -> Game engine returns a valid path or not, asynchronously
+      -> If the path is valid, an attack group is queued to be formed and sent on its way
+    - Spider-units (pentapods) should now be cloned properly
+  Misc:
+    - Improved performance somewhat further
+      - Thanks to Shuby for on_entity_died suggestion
+  Todo:
+    - Allow for cloning on planets other than Nauvis or Gleba
+      -> Greater compatibility with MFerrari's biter mods
+---------------------------------------------------------------------------------------------------
 Version: 0.7.3
 Date: 2026-05-10
   Bug Fixes:
