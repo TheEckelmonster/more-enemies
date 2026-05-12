@@ -1,6 +1,7 @@
 local pairs = pairs
 local table_insert = table.insert
 
+local TECL_Core_Utils = require("__TheEckelmonster-core-library__.libs.utils.core-utils")
 
 local Attack_Group_Constants = require("libs.constants.attack-group-constants")
 local Attack_Group_Data = require("scripts.data.attack-group-data")
@@ -25,11 +26,32 @@ end
 if (next(names, nil) == nil) then names = nil end
 
 local function migrate(params)
+    params = params or {}
+
+    local storage_old = storage.storage_old or storage
     storage = {}
 
-    local version_data = Version_Data:new()
-    storage.version_data = version_data
-    version_data.valid = true
+    local storage = _ENV.storage
+
+    if (params.maintain_data) then
+        storage.storage_old = storage_old
+        storage.storage_old.version_data = storage.storage_old or storage.storage_old.more_enemies.version_data or nil
+
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "event_handlers" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "handles" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "tick" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "settings" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surface_creation" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surfaces" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "attack_groups" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "unit_groups" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "entities" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "num_clones" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "difficulties" })
+    end
+
+    storage.version_data = Version_Data:new()
+    storage.version_data.valid = true
 
     storage.settings = storage.settings or {}
     storage.settings.startup = storage.settings.startup or {}
@@ -38,8 +60,6 @@ local function migrate(params)
     storage.surface_creation = storage.surface_creation or {}
 
     storage.settings = storage.settings or {}
-
-    storage.planet_chunks = storage.planet_chunks or {}
 
     local get_surface = game.get_surface
     local tick =  game.tick

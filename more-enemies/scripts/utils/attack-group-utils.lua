@@ -1,18 +1,32 @@
 local storage
+local difficulties
+local surfaces
+
 local game
 local get_surface
 
-local function set_game(__game)
+local function set_game(__game, __storage)
+    storage = __storage or _ENV.storage
+
+    storage.difficulties = storage.difficulties or {}
+    difficulties = storage.difficulties
+
+    storage.surfaces = storage.surfaces or {}
+    surfaces = storage.surfaces
+
     game = __game or _ENV.game
     get_surface = game.get_surface
+
+    Set_Num_Clones()
 
     return game
 end
 
+local CHUNK_SIZE = Constants.CHUNK_SIZE
+
 local math_huge = math.huge
 
 local next = next
-local type = type
 
 local pairs = pairs
 
@@ -22,11 +36,11 @@ local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
 local Attack_Group_Constants = require("libs.constants.attack-group-constants")
+local type_blacklist = Attack_Group_Constants.type_blacklist
 local Constants = require("libs.constants.constants")
 local Settings_Service = require("scripts.service.settings-service")
 local get_difficulty = Settings_Service.get_difficulty
 local Settings_Utils = require("scripts.utils.settings-utils")
-local Spawn_Constants = require("libs.constants.spawn-constants")
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
 
@@ -41,76 +55,14 @@ end
 if (next(names, nil) == nil) then names = nil end
 
 local attack_group_utils = {}
+attack_group_utils.name = "attack_group_utils"
+attack_group_utils.set_game = set_game
 
-function attack_group_utils.get_enemy(params)
-    -- Log.debug("attack_group_utils.get_enemy")
-    -- Log.info(params)
+local ENEMY = "enemy"
+local ENEMY_TYPES = { "unit", "spider-unit", }
+local PLAYER_FORCES = { "enemy", "neutral" }
 
-    local surface_name = params.surface_name
-    if (not surface_name) then return end
-
-    local chunk = params.chunk
-    if (not chunk) then return end
-
-    local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
-    if (not surface or not surface.valid) then return end
-
-    storage.difficulties = storage.difficulties or {}
-    storage.difficulties[surface_name] = storage.difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
-
-    local selected_difficulty = storage.difficulties[surface_name]
-    if (not selected_difficulty) then return end
-
-    chunk.spawner_count = chunk.spawner_count or 0
-
-    local position = nil
-    if (chunk.closest_spawner_chunk) then position = { x = chunk.closest_spawner_chunk.x * Constants.CHUNK_SIZE + 16, y = chunk.closest_spawner_chunk.y * Constants.CHUNK_SIZE + 16, } end
-    if (not position) then
-        local closest_chunk = attack_group_utils.get_closest_spawner({ surface_name = surface_name, chunk = chunk, tick = params.tick, })
-        if (not closest_chunk) then return end
-        position = { x = closest_chunk.x * Constants.CHUNK_SIZE + 16, y = closest_chunk.y * Constants.CHUNK_SIZE + 16, }
-    end
-
-    if (not position) then return end
-
-    return surface.find_entities_filtered({
-        position = position,
-        radius = 24,
-        name = Spawn_Constants.name,
-        force = "enemy",
-        type = { "unit", "spider-unit", },
-        limit = selected_difficulty.enemy_group_limit or (function (param)
-            selected_difficulty.enemy_group_limit = param
-            return param
-        end)(1 + 4 * selected_difficulty.value * selected_difficulty.radius_modifier + 4 * (selected_difficulty.value ^ 2)) or nil,
-    })
-end
-
-function attack_group_utils.get_target_entity(params)
-    -- Log.debug("attack_group_utils.get_target_entity")
-    -- Log.info(params)
-
-    if (not params) then return end
-    if (not params.chunk) then return end
-    if (not params.surface or not params.surface.valid) then return end
-    if (not params.limit and params.limit < 1) then params.limit = 1 end
-
-    if (params.chunk.x and params.chunk.y) then
-        return params.surface.find_entities_filtered({
-            area = {
-                { x = params.chunk.x * Constants.CHUNK_SIZE, y = params.chunk.y * Constants.CHUNK_SIZE, },
-                { x = params.chunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, y = params.chunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, },
-            },
-            name = names,
-            type = Attack_Group_Constants.type_blacklist,
-            limit = params.limit,
-            force = { "enemy", "neutral" },
-            invert = true,
-        })
-    end
-end
-
-function attack_group_utils.get_closest_spawner(params)
+local function get_closest_spawner(params)
     -- log(serpent.block("attack_group_utils.get_closest_spawner"))
 
     if (not params) then return end
@@ -121,14 +73,13 @@ function attack_group_utils.get_closest_spawner(params)
     local source_chunk = params.chunk
     if (not source_chunk) then return end
 
-    storage.surfaces = storage.surfaces or {}
-    storage.surfaces[surface_name] = storage.surfaces[surface_name] or {}
+    surfaces[surface_name] = (surfaces or set_game() and surfaces) and surfaces[surface_name] or {}
 
-    storage.surfaces[surface_name].spawner_map = storage.surfaces[surface_name].spawner_map or {}
-    local spawner_map = storage.surfaces[surface_name].spawner_map
+    surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
+    local spawner_map = surfaces[surface_name].spawner_map
 
-    storage.surfaces[surface_name].chunk_map = storage.surfaces[surface_name].chunk_map or {}
-    local chunk_map = storage.surfaces[surface_name].chunk_map
+    surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
+    local chunk_map = surfaces[surface_name].chunk_map
     chunk_map.levels = chunk_map.levels or {}
 
     if (source_chunk.closest_spawner_chunk) then
@@ -155,8 +106,86 @@ function attack_group_utils.get_closest_spawner(params)
     return source_chunk.closest_spawner_chunk
 end
 
-function attack_group_utils.init(__storage)
-    storage = __storage
+function attack_group_utils.get_enemy(params)
+    -- Log.debug("attack_group_utils.get_enemy")
+    -- Log.info(params)
+
+    local surface_name = params.surface_name
+    if (not surface_name) then return end
+
+    local chunk = params.chunk
+    if (not chunk) then return end
+
+    local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+    if (not surface or not surface.valid) then return end
+
+    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+
+    local selected_difficulty = storage.difficulties[surface_name]
+    if (not selected_difficulty) then return end
+
+    chunk.spawner_count = chunk.spawner_count or 0
+
+    local position = nil
+    if (chunk.closest_spawner_chunk) then position = { x = chunk.closest_spawner_chunk.x * CHUNK_SIZE + 16, y = chunk.closest_spawner_chunk.y * CHUNK_SIZE + 16, } end
+    if (not position) then
+        local closest_chunk = get_closest_spawner({ surface_name = surface_name, chunk = chunk, tick = params.tick, })
+        if (not closest_chunk) then return end
+        position = { x = closest_chunk.x * CHUNK_SIZE + 16, y = closest_chunk.y * CHUNK_SIZE + 16, }
+    end
+
+    if (not position) then return end
+
+    return surface.find_entities_filtered({
+        position = position,
+        radius = 24,
+        force = ENEMY,
+        type = ENEMY_TYPES,
+        limit = selected_difficulty.enemy_group_limit
+            or (function (arr)
+                arr[1].enemy_group_limit = arr[2]
+                return arr[2] end)(
+                {
+                    selected_difficulty,
+                    1 + 4 * selected_difficulty.value * selected_difficulty.radius_modifier + 4 * (
+                            selected_difficulty.value_squared
+                        or (function (arr)
+                            arr[1].value_squared = arr[2]
+                            return arr[2] end
+                        )({ selected_difficulty, selected_difficulty.value ^ 2, })
+                    )
+                }
+            )
+            or nil,
+    })
 end
+
+function attack_group_utils.get_target_entity(params)
+    -- Log.debug("attack_group_utils.get_target_entity")
+    -- Log.info(params)
+
+    if (not params) then return end
+    if (not params.chunk) then return end
+    if (not params.surface or not params.surface.valid) then return end
+    if (not params.limit and params.limit < 1) then params.limit = 1 end
+
+    if (params.chunk.x and params.chunk.y) then
+        return params.surface.find_entities_filtered({
+            area = {
+                { x = params.chunk.x * CHUNK_SIZE, y = params.chunk.y * CHUNK_SIZE, },
+                { x = params.chunk.x * CHUNK_SIZE + CHUNK_SIZE, y = params.chunk.y * CHUNK_SIZE + CHUNK_SIZE, },
+            },
+            name = names,
+            type = type_blacklist,
+            limit = params.limit,
+            force = PLAYER_FORCES,
+            invert = true,
+        })
+    end
+end
+
+attack_group_utils.get_closest_spawner = get_closest_spawner
+
+function attack_group_utils.init(__storage) storage = __storage end
 
 return attack_group_utils
