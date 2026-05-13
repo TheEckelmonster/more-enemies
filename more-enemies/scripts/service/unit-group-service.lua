@@ -1,10 +1,20 @@
 local storage
 local game
+local entities
 local num_clones
+local groups
 
 local type = type
 
-local function set_game(__game)
+local function set_game(__game, __storage)
+    storage = __storage or _ENV.storage
+
+    storage.entities = storage.entities or {}
+    entities = storage.entities
+
+    storage.groups = storage.groups or {}
+    groups = storage.groups
+
     game = __game or _ENV.game
     return game
 end
@@ -13,18 +23,19 @@ local set_num_clones = Set_Num_Clones
 
 local table_insert = table.insert
 
-local Valid_Surfaces = Valid_Surfaces
-
 local Settings_Service = Settings_Service
 local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
 
 local unit_group_service = {}
+unit_group_service.name = "unit_group_service"
+unit_group_service.set_game = set_game
 
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
 
 local Limits = Limits
 
 local GROUP = "group"
+local UNIT  = "unit"
 function unit_group_service.on_unit_group_finished_gathering(event)
     -- Log.debug("unit_group_service.on_unit_group_finished_gathering")
     -- Log.info(event)
@@ -36,7 +47,6 @@ function unit_group_service.on_unit_group_finished_gathering(event)
     local surface = group.surface
 
     if (not surface or not surface.valid) then return end
-    if (not Valid_Surfaces[surface.name]) then return end
     local surface_name = surface.name
 
     num_clones = num_clones or set_num_clones()
@@ -47,14 +57,15 @@ function unit_group_service.on_unit_group_finished_gathering(event)
     if (not tick) then return end
 
     local unique_id = group.unique_id
-    local idx = unique_id % 60 + 1
 
     local members = group.commandable_members or {}
+    if (not members[1]) then return end
     local member, unit_number, entity = nil, nil, nil
 
-    storage.entities = storage.entities or {}
-    storage.entities[idx] = storage.entities[idx] or {}
+    groups[unique_id] = group
 
+    local idx = ""
+    local member_count = #members
     for i = 1, #members, 1 do
         if (i > max_unit_group_size) then return end
         member = members[i]
@@ -62,18 +73,21 @@ function unit_group_service.on_unit_group_finished_gathering(event)
         entity = member.entity
         if (not entity or not entity.valid or not entity.unit_number) then goto continue end
         unit_number = entity.unit_number
+        idx = unit_number % 60 + 1
+        entities[idx] = entities[idx] or {}
 
-        table_insert(storage.entities[idx],
+        table_insert(entities[idx],
             {
-                source = "group",
-                group = group,
-                unique_id = unique_id,
+                source = GROUP,
+                unique_id = unique_id or nil,
                 tick = tick,
                 unit_number = unit_number,
-                position = member.position.x .. "/" .. member.position.y,
                 surface_name = surface_name,
+                member_count = member_count,
+                type = entity.type or UNIT,
             }
         )
+        entities[idx].count = (entities[idx].count or 0) + 1
 
         ::continue::
     end

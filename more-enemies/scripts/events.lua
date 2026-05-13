@@ -38,6 +38,7 @@ Clone_Unit_Setting = {}
 Clone_Unit_Group_Setting = {}
 Max_Num_Unit_Clones = {}
 Max_Num_Unit_Group_Clones = {}
+Max_Num_Modded_Clones = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAXIMUM_NUMBER_OF_MODDED_CLONES.name, }) or 500
 
 for _, planet in pairs(Constants.DEFAULTS.planets) do
     Clone_Unit_Setting[planet.string_val] = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings["CLONE_" .. planet.string_val:upper() .. "_UNITS"].name, }) or 1
@@ -49,7 +50,7 @@ end
 Limits = {
     ["spawned"] = Max_Num_Unit_Clones,
     ["group"] = Max_Num_Unit_Group_Clones,
-    ["built"] = deepcopy(Max_Num_Unit_Clones),
+    ["built"] = Max_Num_Modded_Clones,
 }
 
 function Set_Num_Clones()
@@ -94,6 +95,9 @@ local Unit_Group_Controller = require("scripts.controller.unit-group-controller"
 local Log_Settings = require("__TheEckelmonster-core-library__.libs.log.log-settings")
 local Settings_Controller = require("__TheEckelmonster-core-library__.scripts.controllers.settings-controller")
 
+--
+-- Register events
+
 local to_init_storage = {
     Chunk_Controller,
     Entity_Controller,
@@ -124,8 +128,39 @@ Event_Handler:register_event({
     func = to_init_storage.reinit_all,
 })
 
---
--- Register events
+local to_set_game = {
+    Entity_Controller,
+    Spawn_Controller,
+    require("scripts.service.attack-group-service"),
+    require("scripts.service.planet-service"),
+    require("scripts.service.spawn-service"),
+    require("scripts.service.unit-group-service"),
+    require("scripts.utils.attack-group-utils"),
+    require("scripts.utils.spawn-utils"),
+}
+
+function to_set_game.set_game_all(event)
+    for _, v in ipairs(to_set_game) do
+        v.set_game()
+    end
+end
+Event_Handler:register_event({
+    event_name = Custom_Events.me_on_init_complete.name,
+    source_name = "to_set_game.set_game_all",
+    func_name = "to_set_game.set_game_all",
+    func = to_set_game.set_game_all,
+})
+
+local globals = {}
+globals.set_num_clones = Set_Num_Clones
+Event_Handler:register_event({
+    event_name = Custom_Events.me_on_init_complete.name,
+    source_name = "globals.set_num_clones",
+    func_name = "globals.set_num_clones",
+    func = globals.set_num_clones,
+})
+
+---
 
 local events = {
     [Chunk_Controller.name] = Chunk_Controller,
@@ -136,7 +171,9 @@ local events = {
     [Settings_Controller.name] = Settings_Controller,
 }
 
+Init = false
 function events.on_init()
+    Init = true
     if (type(storage) ~= "table") then return end
 
     storage.handles = {
@@ -164,6 +201,7 @@ function events.on_init()
     end
 
     Did_Init = true
+    Init = false
 end
 Event_Handler:register_event({
     event_name = "on_init",
@@ -174,7 +212,9 @@ Event_Handler:register_event({
 
 local initialized_from_load = false
 
+Load = false
 function events.on_load()
+    Load = true
     if (type(storage.handles) == "table") then
         local return_val = false
         initialized_from_load = true
@@ -201,6 +241,7 @@ function events.on_load()
     for _, v in ipairs(to_init_storage) do
         v.init(storage)
     end
+    Load = false
 end
 Event_Handler:register_event({
     event_name = "on_load",
@@ -209,9 +250,12 @@ Event_Handler:register_event({
     func = events.on_load,
 })
 
+Configuration_Changed = false
+
 local settings_service = require("scripts.service.settings-service")
 local get_difficulty = settings_service.get_difficulty
 function events.on_configuration_changed(event)
+    Configuration_Changed = true
     if (event.mod_startup_settings_changed) then
         storage.difficulties = storage.difficulties or {}
 
@@ -255,6 +299,7 @@ function events.on_configuration_changed(event)
             end
         end
     end
+    Configuration_Changed = false
 end
 Event_Handler:register_event({
     event_name = "on_configuration_changed",

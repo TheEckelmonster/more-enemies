@@ -1,4 +1,23 @@
-local storage = storage
+local storage
+local stats
+local surfaces
+
+local game
+
+local function set_game(__game, __storage)
+    storage = __storage or _ENV.storage
+
+    storage.stats = storage.stats or {}
+    stats = storage.stats
+
+    storage.surfaces = storage.surfaces or {}
+    surfaces = storage.surfaces
+
+    --[[ game ]]
+    game = __game or _ENV.game
+
+    return game
+end
 
 local math_floor = math.floor
 local ipairs = ipairs
@@ -16,6 +35,7 @@ local Valid_Surfaces = Valid_Surfaces
 
 local entity_controller = {}
 entity_controller.name = "entity_controller"
+entity_controller.set_game = set_game
 
 function entity_controller.on_built_entity(event)
     -- Log.debug("entity_controller.on_built_entity")
@@ -38,13 +58,13 @@ function entity_controller.on_built_entity(event)
     local position = entity.position
     if (not position) then return end
 
-    storage.surfaces = storage.surfaces or {}
-    storage.surfaces[surface_name] = storage.surfaces[surface_name] or {}
-    storage.surfaces[surface_name].chunks = storage.surfaces[surface_name].chunks or {}
-    local chunks = storage.surfaces[surface_name].chunks
+    surfaces = surfaces or set_game() and surfaces
+    surfaces[surface_name] = surfaces[surface_name] or {}
+    surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
+    local chunks = surfaces[surface_name].chunks
 
-    storage.surfaces[surface_name].chunk_map = storage.surfaces[surface_name].chunk_map or {}
-    local chunk_map = storage.surfaces[surface_name].chunk_map
+    surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
+    local chunk_map = surfaces[surface_name].chunk_map
 
     local chunk = {}
     chunk.x = math_floor(position.x / Constants.CHUNK_SIZE)
@@ -98,50 +118,30 @@ function entity_controller.on_mined_entity(event)
     local position = entity.position
     if (not position) then return end
 
-    storage.surfaces = storage.surfaces or {}
-    storage.surfaces[surface_name] = storage.surfaces[surface_name] or {}
-    storage.surfaces[surface_name].chunks = storage.surfaces[surface_name].chunks or {}
-    local chunks = storage.surfaces[surface_name].chunks
+    surfaces = surfaces or set_game() and surfaces
+    surfaces[surface_name] = surfaces[surface_name] or {}
+    surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
+    local chunks = surfaces[surface_name].chunks
 
-    storage.surfaces[surface_name].chunk_map = storage.surfaces[surface_name].chunk_map or {}
-    local chunk_map = storage.surfaces[surface_name].chunk_map
+    surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
+    local chunk_map = surfaces[surface_name].chunk_map
 
-    storage.surfaces[surface_name].spawner_map = storage.surfaces[surface_name].spawner_map or {}
-    local spawner_map = storage.surfaces[surface_name].spawner_map
+    surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
 
     local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. "/" .. math_floor(position.y / Constants.CHUNK_SIZE)
 
-    local chunk = nil
-    if (entity.type == "unit-spawner") then
-        chunk = spawner_map[xy]
-        if (not chunk) then return end
+    local chunk = chunk_map[xy]
+    if (not chunk) then return end
+    chunk.entity_count = chunk.entity_count or 1
+    chunk.entity_count = chunk.entity_count - 1
 
-        chunk.spawner_count = chunk.spawner_count or 1
-        chunk.spawner_count = chunk.spawner_count - 1
-
-        if (chunk.spawner_count < 1) then
-            for i, v in ipairs(chunks) do
-                v.xy = v.xy or (v.x .. "/" .. v.y)
-                if (v.xy == xy) then
-                    spawner_map[v.xy] = nil
-                    break
-                end
-            end
-        end
-    else
-        chunk = chunk_map[xy]
-        if (not chunk) then return end
-        chunk.entity_count = chunk.entity_count or 1
-        chunk.entity_count = chunk.entity_count - 1
-
-        if (chunk.entity_count < 1) then
-            for i, v in ipairs(chunks) do
-                v.xy = v.xy or (v.x .. "/" .. v.y)
-                if (v.xy == xy) then
-                    chunk_map[v.xy] = nil
-                    table_remove(chunks, i)
-                    break
-                end
+    if (chunk.entity_count < 1) then
+        for i, v in ipairs(chunks) do
+            v.xy = v.xy or (v.x .. "/" .. v.y)
+            if (v.xy == xy) then
+                chunk_map[v.xy] = nil
+                table_remove(chunks, i)
+                break
             end
         end
     end
@@ -176,11 +176,11 @@ function entity_controller.on_biter_base_built(event)
     local xy = x .. "/" .. y
 
     local surface_name = surface.name
-    storage.surfaces = storage.surfaces or {}
-    storage.surfaces[surface_name] = storage.surfaces[surface_name] or {}
+    surfaces = surfaces or set_game() and surfaces
+    surfaces[surface_name] = surfaces[surface_name] or {}
 
-    storage.surfaces[surface_name].spawner_map = storage.surfaces[surface_name].spawner_map or {}
-    local spawner_map = storage.surfaces[surface_name].spawner_map
+    surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
+    local spawner_map = surfaces[surface_name].spawner_map
     spawner_map[xy] = spawner_map[xy] or { x = x, y = y, xy = xy, }
 
     local chunk = spawner_map[xy]

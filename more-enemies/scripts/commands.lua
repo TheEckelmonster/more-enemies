@@ -84,24 +84,14 @@ function more_enemies_commands.print_clone_counts(event)
     Log.debug("more_enemies_commands.print_clone_counts")
     locals.validate_command(event, function(player)
         Log.info("commands.print_clone_counts", true)
+        log(serpent.block(storage.num_clones))
+        player.print({ "messages.num-clones", })
+        player.print(serpent.block(storage.num_clones))
     end)
 end
 
 function more_enemies_commands.version(event)
     locals.validate_command(event, function (player)
-
-        -- if (not more_enemies_data.valid) then
-        --     log(serpent.block("storage.more_enemies is nil or invalid; could not obtain version"))
-        --     player.print(serpent.block("storage.more_enemies is nil or invalid; could not obtain version"))
-        --     return
-        -- end
-
-        -- if (not more_enemies_data.version_data.valid) then
-        --     log(serpent.block("storage.more_enemies.version is nil or invalid; could not obtain version"))
-        --     player.print(serpent.block("storage.more_enemies.version is nil or invalid; could not obtain version"))
-        --     return
-        -- end
-
         local version_data = storage.version_data or {}
 
         log(serpent.block("more_enemies mod version: " .. Version_Data.string_val))
@@ -115,7 +105,15 @@ end
 function more_enemies_commands.exterminatus(event)
     locals.validate_command(event, function(player)
         player.print("Exterminatus: removing all enemies, this may take a moment")
+        player.print("Cloning to resume in 15s")
         Initialization.purge({ exterminatus = true })
+    end)
+end
+
+function more_enemies_commands.apply_migrations(event)
+    locals.validate_command(event, function(player)
+        player.print("Applying migrations")
+        Initialization.apply_migrations()
     end)
 end
 
@@ -152,6 +150,7 @@ commands.add_command("more_enemies.print_storage", "", more_enemies_commands.pri
 commands.add_command("more_enemies.print_event_handlers", "", more_enemies_commands.print_event_handlers)
 commands.add_command("more_enemies.version", "Prints the current mod version, and the underlying storage version.", more_enemies_commands.version)
 commands.add_command("more_enemies.exterminatus", "Kills all enemy units and flushes the path finder", more_enemies_commands.exterminatus)
+commands.add_command("more_enemies.apply_migrations", "Reapply migration .lua files", more_enemies_commands.apply_migrations)
 
 Core_Utils.table.traversal.set_prefix({ prefix = Constants.mod_name })
 
