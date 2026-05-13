@@ -69,6 +69,9 @@ local Constants = Constants
 local Mod_Settings = Mod_Settings
 local Valid_Surfaces = Valid_Surfaces
 
+local Utils = require("__core__.lualib.util")
+local deepcopy = Utils.table.deepcopy
+
 local _Settings_Service = Settings_Service
 local Settings_Service = require("scripts.service.settings-service")
 local get_clone_unit_group_setting = Settings_Service.get_clone_unit_group_setting
