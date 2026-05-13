@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.5
+Date: 2026-05-12
+  Bug Fixes:
+    - Fixed/added missing require statement
+      -> Possible runtime error if the `/more_enemies.init false` command is executed
+---------------------------------------------------------------------------------------------------
 Version: 0.7.4
 Date: 2026-05-12
   Bug Fixes:
