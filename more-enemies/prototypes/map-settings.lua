@@ -6,7 +6,7 @@ local Behemoth_Enemies_Constants = require("libs.constants.mods.behemoth-enemies
 local Constants = require("libs.constants.constants")
 local Difficulty_Utils = require("scripts.utils.difficulty-utils")
 local Gleba_Constants = require("libs.constants.gleba-constants")
-local Log = require("libs.log.log")
+-- local Log = require("libs.log.log")
 local Nauvis_Constants = require("libs.constants.nauvis-constants")
 local Settings_Service = require("scripts.service.settings-service")
 
@@ -30,6 +30,7 @@ if (data and data.raw and data.raw["map-settings"] and data.raw["map-settings"][
     map_settings.path_finder.direct_distance_to_consider_short_request = Settings_Service.get_direct_distance_to_consider_short_request()
     map_settings.path_finder.short_request_max_steps = Settings_Service.get_short_request_max_steps()
     map_settings.unit_group.max_unit_group_size = Settings_Service.get_max_unit_group_size_runtime()
+    data:extend({ map_settings, })
 end
 
 for planet, difficulty in pairs(difficulties) do
@@ -69,9 +70,9 @@ for planet, difficulty in pairs(difficulties) do
         -- radius_modifier = 1.953125 -- 58.59375
         radius_modifier = Constants.difficulty.INSANITY.radius_modifier
     else
-        Log.debug("more-enemies: map-settings -> difficulty = ")
-        Log.info(difficulty)
-        Log.warn("No difficulty detected ")
+        -- Log.debug("more-enemies: map-settings -> difficulty = ")
+        -- Log.info(difficulty)
+        -- Log.warn("No difficulty detected ")
         modifier = -1
     end
 

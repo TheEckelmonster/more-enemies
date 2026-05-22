@@ -16,7 +16,8 @@ local Log = Log
 local TECL_Core_Utils = require("__TheEckelmonster-core-library__.libs.utils.core-utils")
 
 local Custom_Events = require("prototypes.custom-events.custom-events")
-local cn_on_init_complete_name = Custom_Events.me_on_init_complete.name
+local me_on_init_complete_name = Custom_Events.me_on_init_complete.name
+local me_migrations_applied_name = Custom_Events.me_migrations_applied.name
 local Migrations = require("scripts.migrations")
 local Version_Data = require("scripts.data.version-data")
 local Version_Service = require("scripts.service.version-service")
@@ -58,7 +59,7 @@ end
 function initialization.purge()
     -- Purge clones
     if (game and game.forces and game.forces["enemy"]) then
-        storage.pause_until = game.tick + 15*60
+        (storage and storage.stats_data or storage).pause_until = game.tick + 15*60
         game.forces["enemy"].kill_all_units()
     end
 end
@@ -74,6 +75,10 @@ function initialization.apply_migrations(params)
             ))
             migration(params)
         end
+    end
+
+    if (raise_event) then
+        raise_event(me_migrations_applied_name, { name = defines_events[me_on_init_complete_name], tick = game.tick, })
     end
 end
 
@@ -113,10 +118,12 @@ function locals.initialize(from_scratch, maintain_data, maintain_existing_peace)
         log({ "initialization.me-initialization-anew", Constants.mod_name })
         if (game) then game.print({ "initialization.me-initialization-anew", Constants.mod_name }) end
 
-        local _storage = storage
+        -- local _storage = storage
+        local _storage = _ENV.storage
         _storage.storage_old = nil
 
-        storage = {}
+        _ENV.storage = {}
+        local storage = _ENV.storage
         storage.storage_old = _storage
 
         local version_data = Version_Data:new()
@@ -139,13 +146,18 @@ function locals.initialize(from_scratch, maintain_data, maintain_existing_peace)
                 version_data.valid = false
             end
         end
+
+        storage.settings_map = storage.settings_map or {}
+        Settings_Map = storage.settings_map
+        Settings_Map.runtime_global = Settings_Map.runtime_global or {}
+        Settings_Map.startup = Settings_Map.startup or {}
     end
 
     if (raise_event) then
-        raise_event(cn_on_init_complete_name, { name = defines_events[cn_on_init_complete_name], tick = game.tick, })
+        raise_event(me_on_init_complete_name, { name = defines_events[me_on_init_complete_name], tick = game.tick, })
     else
         raise_event = script.raise_event
-        raise_event(cn_on_init_complete_name, { name = defines_events[cn_on_init_complete_name], tick = game.tick, })
+        raise_event(me_on_init_complete_name, { name = defines_events[me_on_init_complete_name], tick = game.tick, })
     end
 
     if (from_scratch) then log("more-enemies: Initialization complete") end
@@ -167,12 +179,13 @@ function locals.migrate(params)
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "tick" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "settings" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surface_creation" })
-        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "attack_groups" })
-        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surfaces" })
-        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "entities" })
-        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "unit_groups" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "quadtrees" })
+        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "attack_groups" })
+        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surfaces" })
+        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "entities" })
+        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "unit_groups" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "num_clones" })
-        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "difficulties" })
+        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "difficulties" })
     end
 
     local migration_start_message_printed = false
@@ -181,6 +194,10 @@ function locals.migrate(params)
         if (storage_old.version_data and storage_old.version_data.created >= 0) then
             if (   (type(storage.tick) == "number" and storage.tick > 0)
                 or (type(storage_old.tick) == "number" and storage_old.tick > 0)
+                or  storage.stats_data
+                and (type(storage.stats_data.tick) == "number" and storage.stats_data.tick > 0)
+                or  storage_old.stats_data
+                and (type(storage_old.stats_data.tick) == "number" and storage_old.stats_data.tick > 0)
             ) then
                 log(Constants.mod_name .. ": Migrating existing data")
                 game.print({ "initialization.me-migrate-start", Constants.mod_name})
@@ -189,7 +206,7 @@ function locals.migrate(params)
         end
     end
 
-    if (storage_old.more_enemies and storage_old.more_enemies.version_data and params.new_version_data) then
+    if ((storage_old.more_enemies and storage_old.more_enemies.version_data or storage_old.version_data) and params.new_version_data) then
         local prev_version_data = storage_old.version_data or version_data
         local new_version_data = params.new_version_data or storage.version_data
 

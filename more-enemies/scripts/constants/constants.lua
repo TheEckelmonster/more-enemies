@@ -1,4 +1,3 @@
-local Log = require("libs.log.log")
 local Easy_Difficulty_Data = require("scripts.data.difficulties.easy-difficulty-data")
 local Hard_Difficulty_Data = require("scripts.data.difficulties.hard-difficulty-data")
 local Insanity_Difficulty_Data = require("scripts.data.difficulties.insanity-difficulty-data")
@@ -67,23 +66,11 @@ constants.DEFAULTS.planets = {
 }
 
 constants.CHUNK_SIZE = 32
--- constants.CHUNK_LEVELS = 6
-constants.CHUNK_LEVELS = 59
-
-constants.chunk_sizes = {}
-constants.chunk_sizes_map = {}
--- for i = 1, constants.CHUNK_LEVELS - 1 do
-for i = 0, constants.CHUNK_LEVELS - 1 do
-    -- constants["CHUNK_SIZE_" .. 2 ^ i] = constants.CHUNK_SIZE * (2 ^ i)
-    constants.chunk_sizes[i + 1] = constants.CHUNK_SIZE * (2 ^ i)
-    constants.chunk_sizes_map[constants.CHUNK_SIZE * (2 ^ i)] = i + 1
-end
-
--- constants.CHUNK_SIZE_2 = constants.CHUNK_SIZE * 2
--- constants.CHUNK_SIZE_4 = constants.CHUNK_SIZE_2 * 2
--- constants.CHUNK_SIZE_8 = constants.CHUNK_SIZE_4 * 2
--- constants.CHUNK_SIZE_16 = constants.CHUNK_SIZE_8 * 2
--- constants.CHUNK_SIZE_32 = constants.CHUNK_SIZE_16 * 2
+constants.APROX_MAP_SIZE = 2 ^ 40
+constants.HALF_MAP_SIZE = constants.APROX_MAP_SIZE / 2
+constants.APROX_MAP_CHUNKS = constants.APROX_MAP_SIZE / constants.CHUNK_SIZE
+-- constants.CHUNK_LEVELS = math.log(constants.APROX_MAP_CHUNKS, 2)
+constants.CHUNK_LEVELS = math.ceil(math.log(constants.APROX_MAP_CHUNKS, 2))
 
 -- constants.BIG_INTEGER = (2 ^ 32) - 1
 constants.BIG_INTEGER = (2 ^ constants.CHUNK_SIZE) - 1

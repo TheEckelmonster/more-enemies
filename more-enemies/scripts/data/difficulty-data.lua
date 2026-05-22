@@ -12,22 +12,14 @@ function difficulty_data:new(o)
     Log.debug("difficulty_data:new")
     Log.info(o)
 
-    local defaults = {
-        difficulty = self.difficulty,
-        surface = self.surface,
-        entities_spawned = self.entities_spawned,
-    }
+    local obj = o or {}
 
-    local obj = o or defaults
+    obj.difficulty = obj.difficulty or Vanilla_Difficulty_Data:new()
+    obj.surface = obj.surface or nil
+    obj.entities_spawned = obj.entities_spawned or 0
 
-    for k, v in pairs(defaults) do if (obj[k] == nil and type(v) ~= "function") then obj[k] = v end end
-
-    obj = Data:new(obj)
-
-    setmetatable(obj, self)
     self.__index = self
-
-    return obj
+    return setmetatable(Data:new(obj), self)
 end
 
 setmetatable(difficulty_data, Data)

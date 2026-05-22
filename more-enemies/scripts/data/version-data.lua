@@ -9,13 +9,10 @@ version_data.type = "version-data"
 
 version_data.major = Major_Data:new()
 version_data.major.value = 0
-version_data.major.valid = true
 version_data.minor = Minor_Data:new()
 version_data.minor.value = 7
-version_data.minor.valid = true
 version_data.bug_fix = Bug_Fix_Data:new()
 version_data.bug_fix.value = 6
-version_data.bug_fix.valid = true
 
 version_data.string_val = version_data.major.value .. "." .. version_data.minor.value .. "." .. version_data.bug_fix.value
 
@@ -26,7 +23,7 @@ function version_data:new(o)
         major = self.major,
         minor = self.minor,
         bug_fix = self.bug_fix,
-        string_val = self.string_val,
+        string_val = o and ((o.major and o.major.value or 0) .. "." .. (o.minor and o.minor.value or 1) .. "." .. (o.bug_fix and o.bug_fix.value or 0)),
     }
 
     local obj = o or defaults

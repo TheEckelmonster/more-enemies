@@ -1,12 +1,24 @@
 local storage
+local chunks_arr
+local chunk_maps
 local difficulties
+local spawner_maps
+local stats_data
 local surfaces
 
 local game
 local get_surface
 
-local function set_game(__game, __storage)
+local Planets = Planets
+
+local Stats_Data = require("scripts.data.stats-data")
+local new_Stats_Data = Stats_Data.new
+
+local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
+
+    storage.stats_data = new_Stats_Data(Stats_Data, storage.stats_data) or new_Stats_Data(Stats_Data, { tick = (__game or _ENV.game).tick, })
+    stats_data = storage.stats_data
 
     storage.difficulties = storage.difficulties or {}
     difficulties = storage.difficulties
@@ -14,22 +26,41 @@ local function set_game(__game, __storage)
     storage.surfaces = storage.surfaces or {}
     surfaces = storage.surfaces
 
+    storage.chunks_arr = storage.chunks_arr or {}
+    chunks_arr = storage.chunks_arr
+
+    storage.chunk_maps = storage.chunk_maps or {}
+    chunk_maps = storage.chunk_maps
+
+    storage.spawner_maps = storage.spawner_maps or {}
+    spawner_maps = storage.spawner_maps
+
+    for _, planet in ipairs(Planets or {}) do
+        surfaces[planet] = surfaces[planet] or {}
+        surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
+
+        chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+    end
+
     game = __game or _ENV.game
     get_surface = game.get_surface
-
-    Set_Num_Clones()
 
     return game
 end
 
 local CHUNK_SIZE = Constants.CHUNK_SIZE
 
-local math_huge = math.huge
+local math_min = math.min
 
 local next = next
 
 local pairs = pairs
 
+local Constants = Constants or require("scripts.constants.constants")
 local Log = Log
 
 local Utils = require("__core__.lualib.util")
@@ -37,9 +68,10 @@ local deepcopy = Utils.table.deepcopy
 
 local Attack_Group_Constants = require("libs.constants.attack-group-constants")
 local type_blacklist = Attack_Group_Constants.type_blacklist
-local Constants = require("libs.constants.constants")
+local Quadtree_Service = require("scripts.service.quadtree-service")
+local find_closest = Quadtree_Service.find_closest
 local Settings_Service = require("scripts.service.settings-service")
-local get_difficulty = Settings_Service.get_difficulty
+local get_startup_setting = Settings_Service.get_startup_setting
 local Settings_Utils = require("scripts.utils.settings-utils")
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
@@ -61,50 +93,8 @@ attack_group_utils.set_game = set_game
 local ENEMY = "enemy"
 local ENEMY_TYPES = { "unit", "spider-unit", }
 local PLAYER_FORCES = { "enemy", "neutral" }
-
-local function get_closest_spawner(params)
-    -- log(serpent.block("attack_group_utils.get_closest_spawner"))
-
-    if (not params) then return end
-
-    local surface_name = params.surface_name
-    if (not params.surface_name) then return end
-
-    local source_chunk = params.chunk
-    if (not source_chunk) then return end
-
-    surfaces[surface_name] = (surfaces or set_game() and surfaces) and surfaces[surface_name] or {}
-
-    surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
-    local spawner_map = surfaces[surface_name].spawner_map
-
-    surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
-    local chunk_map = surfaces[surface_name].chunk_map
-    chunk_map.levels = chunk_map.levels or {}
-
-    if (source_chunk.closest_spawner_chunk) then
-        source_chunk.closest_spawner_chunk.tick_returned = source_chunk.closest_spawner_chunk.tick_returned or params.tick
-        if (source_chunk.closest_spawner_chunk.tick_returned >= (params.tick - (2.25 * Constants.TICKS_PER_MINUTE))) then
-            return source_chunk.closest_spawner_chunk
-        end
-    end
-    source_chunk.closest_spawner_chunk = nil
-
-    local distance = math_huge
-    local min_distance = math_huge
-
-    for _xy, _chunk in pairs(spawner_map) do
-        if (_chunk.spawner_count > 0) then
-            distance = ((source_chunk.x - _chunk.x) ^ 2 + (source_chunk.y - _chunk.y) ^ 2) ^ 0.5
-            if (distance <  min_distance) then
-                min_distance = distance
-                source_chunk.closest_spawner_chunk = _chunk
-            end
-        end
-    end
-
-    return source_chunk.closest_spawner_chunk
-end
+local TICKS_PER_MINUTE = Constants.time.TICKS_PER_MINUTE
+local X_MINUTES = 1.25 * TICKS_PER_MINUTE
 
 function attack_group_utils.get_enemy(params)
     -- Log.debug("attack_group_utils.get_enemy")
@@ -119,19 +109,65 @@ function attack_group_utils.get_enemy(params)
     local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
     if (not surface or not surface.valid) then return end
 
-    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
 
-    local selected_difficulty = storage.difficulties[surface_name]
+    local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty) then return end
 
-    chunk.spawner_count = chunk.spawner_count or 0
+    chunk.meta = chunk.meta or {}
+    if (chunk.meta.sleep_until and chunk.meta.sleep_until > params.tick) then return end
+
+    local meta = chunk.meta
 
     local position = nil
-    if (chunk.closest_spawner_chunk) then position = { x = chunk.closest_spawner_chunk.x * CHUNK_SIZE + 16, y = chunk.closest_spawner_chunk.y * CHUNK_SIZE + 16, } end
+    if (    meta.closest_spawner_chunk
+        and (meta.closest_spawner_chunk.tick_returned or 0) >= (params.tick - X_MINUTES)
+        and meta.closest_spawner_chunk.x
+        and meta.closest_spawner_chunk.y
+    ) then
+        position = { x = meta.closest_spawner_chunk.x * CHUNK_SIZE + 16, y = meta.closest_spawner_chunk.y * CHUNK_SIZE + 16, }
+    end
+
     if (not position) then
-        local closest_chunk = get_closest_spawner({ surface_name = surface_name, chunk = chunk, tick = params.tick, })
-        if (not closest_chunk) then return end
-        position = { x = closest_chunk.x * CHUNK_SIZE + 16, y = closest_chunk.y * CHUNK_SIZE + 16, }
+        stats_data = stats_data or set_game() and stats_data
+
+        local closest_chunk = find_closest({
+            tick = params.tick or 0,
+            surface_name = surface_name,
+            target_chunk = chunk,
+            max_distance = meta.expanded_radius or nil
+        })
+
+        if (not closest_chunk) then
+            meta.last_radius = nil
+            local streak = (meta.fail_streak or 0) + 1
+            meta.fail_streak = streak
+
+            local curr_radius = meta.expanded_radius or 256
+            meta.expanded_radius = math_min(curr_radius * 2, 1024 * CHUNK_SIZE)
+
+            local sleep_duration = math_min(streak * streak * 60, 3600)
+            meta.sleep_until = params.tick + sleep_duration
+
+            meta.closest_spawner_chunk = nil
+            return
+        else
+            meta.closest_spawner_chunk = closest_chunk
+            meta.last_radius = (meta.last_radius or 256) + 64
+            meta.tick = params.tick
+
+            meta.sleep_until = nil
+            meta.fail_streak = 0
+
+            meta.closest_spawner_chunk = {
+                tick_returned = params.tick,
+                x = closest_chunk.x,
+                y = closest_chunk.y,
+                xy = closest_chunk.x .. "/" .. closest_chunk.y,
+            }
+
+            position = { x = closest_chunk.x * CHUNK_SIZE + 16, y = closest_chunk.y * CHUNK_SIZE + 16, }
+        end
     end
 
     if (not position) then return end
@@ -184,8 +220,6 @@ function attack_group_utils.get_target_entity(params)
     end
 end
 
-attack_group_utils.get_closest_spawner = get_closest_spawner
-
-function attack_group_utils.init(__storage) storage = __storage end
+function attack_group_utils.init(__storage) storage = __storage or _ENV.storage end
 
 return attack_group_utils

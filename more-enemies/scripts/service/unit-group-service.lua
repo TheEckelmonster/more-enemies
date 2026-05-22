@@ -1,12 +1,13 @@
 local storage
 local game
 local entities
+local limits
 local num_clones
 local groups
 
-local type = type
+local Set_Num_Clones = Set_Num_Clones
 
-local function set_game(__game, __storage)
+local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
 
     storage.entities = storage.entities or {}
@@ -15,32 +16,36 @@ local function set_game(__game, __storage)
     storage.groups = storage.groups or {}
     groups = storage.groups
 
+    storage.limits = storage.limits or {}
+    limits = storage.limits
+
     game = __game or _ENV.game
+
+    num_clones = Set_Num_Clones()
+
     return game
 end
 
-local set_num_clones = Set_Num_Clones
-
 local table_insert = table.insert
+local type = type
 
-local Settings_Service = Settings_Service
-local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
+local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
+local Simple_Queue = require("scripts.data.simple-queue")
+local new_Simple_Queue = Simple_Queue.new
 
 local unit_group_service = {}
 unit_group_service.name = "unit_group_service"
 unit_group_service.set_game = set_game
 
-local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
+local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
 
-local Limits = Limits
-
-local GROUP = "group"
+local GROUP = GROUP
 local UNIT  = "unit"
 function unit_group_service.on_unit_group_finished_gathering(event)
     -- Log.debug("unit_group_service.on_unit_group_finished_gathering")
     -- Log.info(event)
 
-    if (not event or not event.name) then return end
+    if (not event or not event.tick) then return end
     local group = event.group
 
     if (not group or not group.valid) then return end
@@ -49,73 +54,71 @@ function unit_group_service.on_unit_group_finished_gathering(event)
     if (not surface or not surface.valid) then return end
     local surface_name = surface.name
 
-    num_clones = num_clones or set_num_clones()
-    if (num_clones[GROUP][surface_name] > (Limits[GROUP] and Limits[GROUP][surface_name] or 400)) then return end
-
-    game = game or set_game()
-    local tick = event.tick or game.tick
-    if (not tick) then return end
-
     local unique_id = group.unique_id
 
     local members = group.commandable_members or {}
     if (not members[1]) then return end
     local member, unit_number, entity = nil, nil, nil
 
-    groups[unique_id] = group
+    groups = groups or set_game() and groups
+    groups[unique_id] = { tick = event.tick, group = group, starting_pos = group.position, }
 
+    num_clones = num_clones or set_game() and num_clones
+
+    local tick = event.tick
     local idx = ""
     local member_count = #members
+    limits = limits or set_game() and limits
     for i = 1, #members, 1 do
         if (i > max_unit_group_size) then return end
         member = members[i]
         if (not member or not member.valid or not member.is_entity) then goto continue end
         entity = member.entity
         if (not entity or not entity.valid or not entity.unit_number) then goto continue end
+        if (num_clones[GROUP][surface_name][entity.name] > (limits[GROUP] and limits[GROUP][surface_name] and limits[GROUP][surface_name][entity.name] or 400)) then return end
+
         unit_number = entity.unit_number
         idx = unit_number % 60 + 1
-        entities[idx] = entities[idx] or {}
 
-        table_insert(entities[idx],
-            {
-                source = GROUP,
-                unique_id = unique_id or nil,
-                tick = tick,
-                unit_number = unit_number,
-                surface_name = surface_name,
-                member_count = member_count,
-                type = entity.type or UNIT,
-            }
-        )
-        entities[idx].count = (entities[idx].count or 0) + 1
+        entities = entities or set_game() and entities
+        entities[idx] = entities[idx] or new_Simple_Queue(Simple_Queue)
+        local entity_queue = entities[idx]
+        entity_queue.q[(entity_queue.last or 1) + 1] = {
+            source = GROUP,
+            unique_id = unique_id or nil,
+            tick = tick,
+            unit_number = unit_number,
+            surface_name = surface_name,
+            member_count = member_count,
+            type = entity.type or UNIT,
+        }
+        entity_queue.last = (entity_queue.last or 1) + 1
 
         ::continue::
     end
 end
 
+local update_settings = {}
 
-function unit_group_service.on_runtime_mod_setting_changed(event)
-    Log.debug("spawn_service.on_runtime_mod_setting_changed")
-    Log.info(event)
+update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] = function (event, params) max_unit_group_size = params.setting_value end
 
-    if (not event.setting or type(event.setting) ~= "string") then return end
-    if (not event.setting_type or type(event.setting_type) ~= "string") then return end
+local ME_PREFIX = ME_PREFIX
+local STRING = Types.STRING
+function unit_group_service.on_runtime_mod_setting_changed(event, params)
+    if (not event.setting or type(event.setting) ~= STRING) then return end
+    if (not event.setting_type or type(event.setting_type) ~= STRING) then return end
 
-    if (not (event.setting:find("more-enemies-", 1, true) == 1)) then return end
+    if (not (event.setting:find(ME_PREFIX, 1, true) == 1)) then return end
 
-    if (event.setting == Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name) then
-        max_unit_group_size = get_runtime_global_setting({ setting = Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Mod_Settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
+    if (update_settings[event.setting]) then
+        update_settings[event.setting](event, params)
     end
 end
-Event_Handler:register_event({
-    event_name = "on_runtime_mod_setting_changed",
-    source_name = "unit_group_service.on_runtime_mod_setting_changed",
-    func_name = "unit_group_service.on_runtime_mod_setting_changed",
-    func = unit_group_service.on_runtime_mod_setting_changed,
+Settings_Registry:register_setting({
+    func_name = "spawn_service_settings",
+    func = unit_group_service.on_runtime_mod_setting_changed
 })
 
-function unit_group_service.init(__storage)
-    storage = __storage
-end
+function unit_group_service.init(__storage) storage = __storage or _ENV.storage end
 
 return unit_group_service
