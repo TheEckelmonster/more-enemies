@@ -12,7 +12,6 @@ settings[#settings+1] = {
     maximum_value = 1111,
     minimum_value = 0,
 }
-
 settings[#settings+1] = {
     setting = "CLONES_PER_TICK",
     type = "int-setting",
@@ -23,7 +22,6 @@ settings[#settings+1] = {
     maximum_value = 111,
     minimum_value = 0,
 }
-
 settings[#settings+1] = {
     setting = "MAXIMUM_NUMBER_OF_MODDED_CLONES",
     type = "int-setting",
@@ -33,8 +31,8 @@ settings[#settings+1] = {
     default_value = 500,
     maximum_value = 111111,
     minimum_value = 0,
+    hidden = true,
 }
-
 settings[#settings+1] = {
     setting = "MAXIMUM_ATTACK_GROUP_DELAY",
     type = "int-setting",
@@ -44,15 +42,42 @@ settings[#settings+1] = {
     default_value = 1800,
     minimum_value = 0,
 }
-
 settings[#settings+1] = {
     setting = "MINIMUM_ATTACK_GROUP_DELAY",
     type = "int-setting",
     name = prefix .. "minimum-attack-group-delay",
     setting_type = "runtime-global",
-    order = "e[clone]-c[unspecified]-g[attack-group]-e[delay-min]",
+    order = "e[clone]-c[unspecified]-g[attack-group]-g[delay-min]",
     default_value = 900,
     minimum_value = 0,
+}
+settings[#settings+1] = {
+    setting = "MAX_UNIT_GROUP_AGE",
+    type = "double-setting",
+    name = prefix .. "max-unit-group-age",
+    setting_type = "runtime-global",
+    order = "e[debug]-c[unspecified]-g[attack-group]-i[max-unit-group-age]",
+    default_value = 10,
+    maximum_value = 60,
+    minimum_value = 0,
+}
+settings[#settings+1] = {
+    setting = "MAX_UNIT_GROUPS",
+    type = "int-setting",
+    name = prefix .. "max-unit-groups",
+    setting_type = "runtime-global",
+    order = "e[debug]-c[unspecified]-g[attack-group]-i[max-unit-groups]",
+    default_value = 30,
+    maximum_value = 111,
+    minimum_value = 0,
+}
+settings[#settings+1] = {
+    setting = "DEBUG_SHOW_ATTACK_GROUP_TARGETS",
+    type = "bool-setting",
+    name = prefix .. "debug-show-attack-group-targets",
+    setting_type = "runtime-global",
+    order = "zzy[debug]-c[unspecified]-g[attack-group]-c[show-attack-group-targets]",
+    default_value = false,
 }
 
 return settings

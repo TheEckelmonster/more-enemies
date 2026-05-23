@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.6
+Date: 2026-05-22
+  Bug Fixes:
+    - Fixed potential runtime on_entity_died error when starting a new game (most likely to occur when SA was not present - thanks to _together for the report!)
+    - Fixed potential runtime on_entity_died error when other mods were added or removed (thanks to Shuby for the report!)
+  Misc:
+    - Improved performance somewhat further
+      - Performance has improved sufficiently to allow true multiplicative scaling again
+      - Added/implmented a pseudo-kinematics engine for real-time load shedding of processes and events to only core required systems proportionaly when under increasing system stress
+      - Replaced as many linear based processes as possible with O(1) or O(log N) versions if possible
+        -> Possible largely due to implementing and maintaining a lazily instantiated, self-collapsing spatial-lookup quadtree object for each surface/planet
+        -> Allows for searching for anything on the map, anywhere, in 35 iterations or less.
+        -> Dynamically changes search distance/resolution based on system load/switches from exact best, to first best (i.e. greedy), when under sufficient system stress for improved performance
+    - Insanity is actually playable now
+      -> Tested and confirmed it is multiplayer safe
+---------------------------------------------------------------------------------------------------
 Version: 0.7.5
 Date: 2026-05-12
   Bug Fixes:

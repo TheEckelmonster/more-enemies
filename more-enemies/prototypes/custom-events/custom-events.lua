@@ -9,6 +9,10 @@ local custom_events =
         type = "custom-event",
         name = "me-on-init-complete"
     },
+    {
+        type = "custom-event",
+        name = "me-migrations-applied"
+    },
 }
 
 if (mods and not script) then
