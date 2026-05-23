@@ -2,7 +2,7 @@
 Version: 0.7.6
 Date: 2026-05-22
   Bug Fixes:
-    - Fixed potential runtime on_entity_died error when starting a new game (most likely to occur when SA was not present) (thanks to _together for the report!)
+    - Fixed potential runtime on_entity_died error when starting a new game (most likely to occur when SA was not present - thanks to _together for the report!)
     - Fixed potential runtime on_entity_died error when other mods were added or removed (thanks to Shuby for the report!)
   Misc:
     - Improved performance somewhat further
@@ -13,7 +13,7 @@ Date: 2026-05-22
         -> Allows for searching for anything on the map, anywhere, in 35 iterations or less.
         -> Dynamically changes search distance/resolution based on system load/switches from exact best, to first best (i.e. greedy), when under sufficient system stress for improved performance
     - Insanity is actually playable now
-     - Tested and confirmed it is multiplayer safe
+      -> Tested and confirmed it is multiplayer safe
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.5
 Date: 2026-05-12
