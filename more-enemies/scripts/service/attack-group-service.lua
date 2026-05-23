@@ -419,7 +419,7 @@ function attack_group_service.on_script_path_request_finished(event)
     unit_groups = unit_groups or set_game() and unit_groups
     unit_groups.count = (unit_groups.count or 0)
 
-    if (unit_groups.count >= max_unit_groups) then return end
+    if (unit_groups.count > max_unit_groups) then return end
 
     local surface = (game or set_game()).get_surface(requesting_unit_group.surface_name)
     if (not surface or not surface.valid) then return end
