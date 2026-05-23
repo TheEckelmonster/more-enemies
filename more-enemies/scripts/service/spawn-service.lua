@@ -51,11 +51,8 @@ local function set_game(event, __game, __storage)
     storage.settings_map = storage.settings_map or {}
     settings_map = storage.settings_map
 
-    storage.settings = storage.settings or {}
-    storage.settings_map.runtime_global = storage.settings.runtime_global
-
-    storage.settings_map = storage.settings_map or {}
-    storage.settings_map.startup = storage.settings.startup
+    storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+    storage.settings_map.startup = storage.settings_map.startup or {}
 
     storage.surfaces = storage.surfaces or {}
     surfaces = storage.surfaces
@@ -324,6 +321,8 @@ function spawn_service.on_tick(event)
                         unit_groups.count = (unit_groups.count or 1) - 1
                         if (unit_groups.count < 0) then unit_groups.count = 0 end
 
+                        settings_map = settings_map or set_game() and settings_map
+                        settings_map.runtime_global = settings_map.runtime_global or {}
                         if (settings_map.runtime_global[show_attack_group_targets.name]) then  game_print({ "messages.entity-gps", "", requesting_unit_group.target_position.x, requesting_unit_group.target_position.y, requesting_unit_group.surface_name }) end
                     end
 
@@ -449,7 +448,9 @@ function spawn_service.on_tick(event)
                                         unit_groups.count = (unit_groups.count or 1) - 1
                                         if (unit_groups.count < 0) then unit_groups.count = 0 end
 
-                                        if (settings_map.runtime_global[show_attack_group_targets.name] == nil) then game_print({ "messages.entity-gps", "", requesting_unit_group.target_position.x, requesting_unit_group.target_position.y, requesting_unit_group.surface_name }) end
+                                        settings_map = settings_map or set_game() and settings_map
+                                        settings_map.runtime_global = settings_map.runtime_global or {}
+                                        if (settings_map.runtime_global[show_attack_group_targets.name]) then game_print({ "messages.entity-gps", "", requesting_unit_group.target_position.x, requesting_unit_group.target_position.y, requesting_unit_group.surface_name }) end
                                     else
                                         groups[requesting_unit_group.unique_id] = nil
                                         unique_ids[requesting_unit_group.unique_id] = nil

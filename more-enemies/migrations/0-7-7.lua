@@ -48,13 +48,13 @@ local function migrate(params)
 
     local storage = _ENV.storage
 
-    storage.settings = storage.settings or {}
-    storage.settings.startup = storage.settings.startup or {}
-    storage.settings.runtime_global = storage.settings.runtime_global or {}
+    storage.settings_map = storage.settings_map or {}
+    storage.settings_map.startup = storage.settings_map.startup or {}
+    storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
 
     storage.surface_creation = storage.surface_creation or {}
 
-    storage.settings = storage.settings or {}
+    storage.settings_map = storage.settings_map or {}
 
     game = game or _ENV.game
 

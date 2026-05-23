@@ -13,6 +13,10 @@ local defines_events =  defines.events
 local Constants = Constants
 local Log = Log
 
+local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
+local Settings_Service = Settings_Service
+local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
+
 local TECL_Core_Utils = require("__TheEckelmonster-core-library__.libs.utils.core-utils")
 
 local Custom_Events = require("prototypes.custom-events.custom-events")
@@ -147,10 +151,14 @@ function locals.initialize(from_scratch, maintain_data, maintain_existing_peace)
             end
         end
 
+
         storage.settings_map = storage.settings_map or {}
+        storage.settings_map.startup = storage.settings_map.startup or {}
+        storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
         Settings_Map = storage.settings_map
-        Settings_Map.runtime_global = Settings_Map.runtime_global or {}
-        Settings_Map.startup = Settings_Map.startup or {}
+        for _, setting_tbl in pairs(Runtime_Global_Settings_Constants.settings or {}) do
+            Settings_Map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, }) or setting_tbl.default_value
+        end
     end
 
     if (raise_event) then
