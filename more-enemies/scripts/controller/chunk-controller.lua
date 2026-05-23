@@ -106,13 +106,13 @@ function chunk_controller.on_chunk_generated(event)
     local surface_name = surface.name
 
     chunks_arr = chunks_arr or set_game() and chunks_arr
-    local chunks = chunks_arr[surface_name]
+    local chunks = chunks_arr[surface_name] or {}
 
     spawner_maps = spawner_maps or set_game() and spawner_maps
-    local spawner_map = spawner_maps[surface_name]
+    local spawner_map = spawner_maps[surface_name] or {}
 
     chunk_maps = chunk_maps or set_game() and chunk_maps
-    local chunk_map = chunk_maps[surface_name]
+    local chunk_map = chunk_maps[surface_name] or {}
 
     local chunk = {}
     chunk.x = chunk_position.x
@@ -188,6 +188,7 @@ function chunk_controller.on_chunk_deleted(event)
 
     chunk_maps = chunk_maps or set_game() and chunk_maps
     local chunk_map = chunk_maps[surface_name]
+    if (not chunk_map) then return end
 
     for i, chunk_position in ipairs(event.positions) do
         remove_node({ surface_name = surface_name, source_chunk = chunk_position, })
