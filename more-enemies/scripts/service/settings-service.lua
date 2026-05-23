@@ -290,9 +290,9 @@ function settings_service.get_runtime_global_setting(params)
     if (not params.setting or type(params.setting) ~= "string") then return end
 
     if (not storage_runtime_settings) then
-        storage.settings = storage.settings or {}
-        storage.settings.runtime_global = storage.settings.runtime_global or {}
-        storage_runtime_settings = storage.settings.runtime_global
+        storage.settings_map = storage.settings_map or {}
+        storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+        storage_runtime_settings = storage.settings_map.runtime_global
     end
 
     local setting = storage_runtime_settings and storage_runtime_settings[params.setting]
@@ -312,9 +312,9 @@ function settings_service.get_startup_setting(params)
     if (not params.setting or type(params.setting) ~= "string") then return end
 
     if (not storage_runtime_settings) then
-        storage.settings = storage.settings or {}
-        storage.settings.startup = storage.settings.startup or {}
-        storage_runtime_settings = storage.settings.startup
+        storage.settings_map = storage.settings_map or {}
+        storage.settings_map.startup = storage.settings_map.startup or {}
+        storage_runtime_settings = storage.settings_map.startup
     end
 
     local setting = storage_startup_settings and storage_startup_settings[params.setting]
@@ -361,9 +361,9 @@ end
 function settings_service.init(__storage)
     storage = __storage or _ENV.storage
 
-    if (storage and storage.settings) then
-        if (storage.settings.startup) then storage_startup_settings = storage.settings.startup end
-        if (storage.settings.runtime_global) then storage_runtime_settings = storage.settings.runtime_global end
+    if (storage and storage.settings_map) then
+        if (storage.settings_map.startup) then storage_startup_settings = storage.settings_map.startup end
+        if (storage.settings_map.runtime_global) then storage_runtime_settings = storage.settings_map.runtime_global end
     end
 end
 
