@@ -2,11 +2,11 @@ local storage
 local attack_groups
 local chunks_arr
 local chunk_maps
-local difficulties
 local entities
 local groups
 local limits
 local num_clones
+local opts
 local pathables
 local settings_map
 local spawner_maps
@@ -33,9 +33,6 @@ local function set_game(event, __game, __storage)
     storage.attack_groups = storage.attack_groups or {}
     attack_groups = storage.attack_groups
 
-    storage.difficulties = storage.difficulties or {}
-    difficulties = storage.difficulties
-
     storage.entities = storage.entities or {}
     entities = storage.entities
 
@@ -44,6 +41,9 @@ local function set_game(event, __game, __storage)
 
     storage.limits = storage.limits or {}
     limits = storage.limits
+
+    storage.opts = storage.opts or {}
+    opts = storage.opts
 
     storage.pathables = storage.pathables or {}
     pathables = storage.pathables
@@ -116,29 +116,16 @@ local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 local Valid_Sources = Valid_Sources
 local Valid_Surfaces = Valid_Surfaces
 
-local Utils = require("__core__.lualib.util")
-local deepcopy = Utils.table.deepcopy
-
 local Simple_Queue = require("scripts.data.simple-queue")
 local new_Simple_Queue = Simple_Queue.new
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local remove_node = Quadtree_Service.remove_node
 
-local Settings_Service = require("scripts.service.settings-service")
-local get_startup_setting = Settings_Service.get_startup_setting
-local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
-
 local Spawn_Utils = require("scripts.utils.spawn-utils")
-local calc_evolution_multiplier = Spawn_Utils.calc_evolution_multiplier
 local clone_entity = Spawn_Utils.clone_entity
 
 local clones_per_tick = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.name, }) or Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
-
-local use_evolution_factor = {}
-for _, surface_name in ipairs(Planets or {}) do
-    use_evolution_factor[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"].name, }) or true
-end
 
 local requesting_unit_group_placeholder = { member_count = math_huge, }
 
@@ -268,14 +255,15 @@ function spawn_service.on_tick(event)
                                     return arr[1][arr[2]]
                                 end)({ entities, uidx, })
 
-                                group_queue.q[group_queue.last] = {
+                                local next_idx = group_queue.last or 1
+                                group_queue.last = next_idx + 1
+                                group_queue.q[next_idx] = {
                                     source = GROUP,
                                     unique_id = requesting_unit_group.unique_id,
                                     tick = event.tick,
                                     unit_number = unit_number,
                                     surface_name = requesting_unit_group.surface_name,
                                 }
-                                group_queue.last = group_queue.last + 1
 
                                 if (    num_entities >= (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and limits[GROUP][requesting_unit_group.surface_name][enemy.name] or 400)
                                     or  requesting_unit_group.member_count >= (requesting_unit_group.limit or max_unit_group_size or 0)
@@ -362,8 +350,7 @@ function spawn_service.on_tick(event)
         end
     end
 
-    if (((stats_data or set_game() and stats_data).current.total or 1) > 512) then return end
-
+    if (((stats_data or set_game() and stats_data).current.total or 1) > 1024) then return end
     local skip = nil
     local entity_queue = entities[idx]
     if (    not entity_queue
@@ -381,21 +368,15 @@ function spawn_service.on_tick(event)
         local entity_tbl, entity = nil, nil
         local source, surface_name = nil, nil
         local clones, group = nil, nil
-        local opts = {}
-        local evolution_factors = {}
-        local evolution_multipliers = {}
 
-        local queue_size = entity_queue.last - entity_queue.first + 1
+        local queue_size = entity_queue.last - entity_queue.first
         if (queue_size < 0) then goto skip end
         for i = 1, queue_size, 1 do
-            if ((stats_data.current.total or 1) > 2 * clones_per_tick) then
+            if ((stats_data.current.total or 1) > 8 * clones_per_tick) then
                 skip = 1
                 goto skip
             end
-            if ((   entity_queue.last - entity_queue.first) > clones_per_tick
-                or  clone_count > clones_per_tick
-                or  i > clones_per_tick
-            ) then
+            if (clone_count > clones_per_tick or  i > clones_per_tick) then
                 skip = 1
                 goto skip
             end
@@ -412,7 +393,7 @@ function spawn_service.on_tick(event)
                 or  not entity_tbl.surface_name
                 or  not entity_tbl.name
             ) then
-                if ((stats_data.current.total or 1) > 512) then
+                if ((stats_data.current.total or 1) > 1024) then
                     skip = 1
                     goto skip
                 end
@@ -433,11 +414,11 @@ function spawn_service.on_tick(event)
 
                 if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and limits[GROUP][surface_name][entity_tbl.name] or 400)) then goto continue end
 
-                opts.clone_settings = {
-                    unit = Clone_Unit_Setting[surface_name] or 1,
-                    unit_group = Clone_Unit_Group_Setting[surface_name] or 1,
-                    type = entity_tbl.source == GROUP and UNIT_GROUP or UNIT
-                }
+                opts = opts or set_game() and opts
+                opts.clone_settings = opts.clone_settings or {}
+                opts.clone_settings.unit = Clone_Unit_Setting[surface_name] or 1
+                opts.clone_settings.unit_group = Clone_Unit_Group_Setting[surface_name] or 1
+                opts.type = entity_tbl.source == GROUP and UNIT_GROUP or UNIT
 
                 entity = game and get_entity_by_unit_number(entity_tbl.unit_number) or set_game().get_entity_by_unit_number(entity_tbl.unit_number)
                 if (not entity or not entity.valid) then goto continue end
@@ -474,7 +455,7 @@ function spawn_service.on_tick(event)
                                         unique_ids[requesting_unit_group.unique_id] = nil
                                         unit_groups.count = (unit_groups.count or 1) - 1
                                         if (unit_groups.count < 0) then unit_groups.count = 0 end
-                                        goto continue
+                                        -- goto continue
                                     end
                                 end
                             end
@@ -484,15 +465,6 @@ function spawn_service.on_tick(event)
 
                 opts.tick = event.tick
                 opts.surface_name = surface_name
-                evolution_factors[surface_name] = evolution_factors[surface_name] or entity.force.get_evolution_factor(surface_name)
-                evolution_multipliers[surface_name] = evolution_multipliers[surface_name] or calc_evolution_multiplier(difficulties[surface_name], use_evolution_factor and (use_evolution_factor[surface_name] or (function (arr) arr[1][arr[2]] = arr[3]; return arr[3] end)({ use_evolution_factor, surface_name, get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"].value, reindex = true, }) or true, }))
-                    and (evolution_factors[surface_name] or (function (arr) arr[1][arr[2]] = arr[3]; return arr[3] end)({ evolution_factors, surface_name, get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"].value, reindex = true, }) or true, }))
-                    or 0
-                )
-
-                difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
-                opts.evolution_multiplier = use_evolution_factor[surface_name] and evolution_multipliers[surface_name] or 1
-                opts.use_evolution_factor = use_evolution_factor[surface_name]
                 clones = clone_entity(entity, opts)
 
                 if (clones) then
@@ -524,12 +496,14 @@ function spawn_service.on_tick(event)
 
     ::skip::
     if (entity_queue) then
-        entity_queue.first = not entity_queue.q[entity_queue.first or 1] and ((entity_queue.first or 0) + 1) or entity_queue.first
+        entity_queue.first = entity_queue.first or 1
+        entity_queue.last = entity_queue.last or 1
+
         if (entity_queue.first >= entity_queue.last) then
             if ((entity_queue.last - entity_queue.first) == 0) then
                 entity_queue.q[1] = entity_queue.q[entity_queue.first]
                 entity_queue.q[entity_queue.first] = nil
-                entity_queue.first, entity_queue.last = 1, 1
+                entity_queue.first, entity_queue.last = 1, 2
             else
                 entities[idx] = nil
             end
@@ -564,7 +538,6 @@ local function find_overlapping_chunks(entity)
     return collides
 end
 
-local UNIT = UNIT
 local SPIDER_UNIT = SPIDER_UNIT
 local UNIT_SPAWNER = UNIT_SPAWNER
 local entity_types = {
@@ -675,15 +648,16 @@ function spawn_service.on_entity_spawned(event)
     entities = entities or set_game() and entities
     entities[idx] = entities[idx] or new_Simple_Queue(Simple_Queue)
     local entity_queue = entities[idx]
-    entity_queue.q[(entity_queue.last or 1) + 1] = {
+    local next_idx = entity_queue.last or 1
+    entity_queue.last = next_idx + 1
+    entity_queue.q[next_idx] = {
         source = SPAWNED,
         tick = event.tick,
         unit_number = unit_number,
         surface_name = surface_name,
-        type = entity.type or "unit",
+        type = entity.type or UNIT,
         name = entity.name,
     }
-    entity_queue.last = (entity_queue.last or 1) + 1
 end
 
 local BUILT = BUILT
@@ -714,15 +688,16 @@ function spawn_service.entity_built(event)
     entities = entities or set_game() and entities
     entities[idx] = entities[idx] or new_Simple_Queue(Simple_Queue)
     local entity_queue = entities[idx]
-    entity_queue.q[(entity_queue.last or 1) + 1] = {
+    local next_idx = entity_queue.last or 1
+    entity_queue.last = next_idx + 1
+    entity_queue.q[next_idx] = {
         source = BUILT,
         tick = event.tick,
         unit_number = unit_number,
         surface_name = surface_name,
-        type = entity.type or "unit",
+        type = entity.type or UNIT,
         name = entity.name,
     }
-    entity_queue.last = (entity_queue.last or 1) + 1
 end
 
 
@@ -737,7 +712,6 @@ for _, planet in ipairs(Planets or { NAUVIS, }) do
     local idx = planet:gsub(ESCAPED_DASH, UNDERSCORE):upper()
     update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name] = function (event, params) Clone_Unit_Setting[params.surface_name or ""] = params.setting_value end
     update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name] = function (event, params) Clone_Unit_Group_Setting[params.surface_name or ""] = params.setting_value end
-    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_DO_EVOLUTION_FACTOR"] or {}).name] = function (event, params) use_evolution_factor[params.surface_name or ""] = params.setting_value end
     for unit, _ in pairs(Clonable_Units) do
         local idx = (planet:gsub(ESCAPED_DASH, UNDERSCORE):upper() .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then

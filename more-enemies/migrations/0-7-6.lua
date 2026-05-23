@@ -102,7 +102,6 @@ local function migrate(params)
                         })
 
                         if (chunk.spawner_count > 0) then
-                            log(serpent.block(chunk.xy))
                             spawner_map[chunk.xy] = chunk
                         end
 

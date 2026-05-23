@@ -74,11 +74,11 @@ end
 local type = type
 
 local math_floor = math.floor
+local math_max = math.max
 local math_min = math.min
 local math_random = math.random
 local math_sqrt = math.sqrt
 local table_insert = table.insert
-local table_remove = table.remove
 
 local defines = defines
 local command_attack_area = defines.command.attack_area
@@ -108,6 +108,11 @@ local delay_min = Data_Utils.get_runtime_global_setting({ setting = Runtime_Glob
 local delay_max = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
 local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name, })
+
+local attack_group_probability_modifiers = {}
+for _, surface_name in ipairs(Planets or {}) do
+    attack_group_probability_modifiers[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"].name, })
+end
 
 local BOUNDING_BOXES = {
     [UNIT] = {{-0.25, -0.25}, {0.25, 0.25},},
@@ -266,35 +271,23 @@ function attack_group_service.do_random_attack_group(params)
         if (max_probability < 0) then max_probability = 0 end
 
         settings_map = settings_map or set_game() and settings_map
-        max_probability = max_probability * (settings_map.runtime_global[Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"].name] or ((function (arr)
-            if (arr and arr[1]) then
-                settings_map.runtime_global[arr[1].name] = get_runtime_global_setting({ setting = arr[1].name, })
-            end
-
-            settings_map.runtime_global[arr[1].name] = settings_map.runtime_global[arr[1].name] or 1
-
-            return settings_map.runtime_global[arr[1].name]
-        end)({ Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"], })))
-
+        max_probability = max_probability * (attack_group_probability_modifiers[surface_name] or 0)
         local threshold = max_probability * evolution_factor
         selected_difficulty.retries = selected_difficulty.retries or math_floor((selected_difficulty.value * 3) ^ 0.5)
 
         local proceed = false
+        rand = math_random()
         for i = 1, selected_difficulty.retries, 1 do
-            if (math_random() < threshold) then
+            if (rand < threshold) then
                 proceed = true
                 break
             end
-            threshold = threshold ^ 0.9
+            threshold = threshold ^ (0.95 * (1 - math_max((1 - selected_difficulty.inverse_value) * evolution_factor, 1.0)))
         end
 
         if (not proceed) then return end
 
-        local limit = 2 + 2 * (selected_difficulty.attack_group_limit or (function (arr)
-            arr[1].attack_group_limit = arr[2]
-            return arr[2]
-        end)({ selected_difficulty, selected_difficulty.value * selected_difficulty.radius_modifier, })) * (selected_difficulty.value * (evolution_factor ^ (selected_difficulty.inverse_value or 1))) + (3 + math_random(num_enemies)) * selected_difficulty.radius_modifier * math_random(1 + selected_difficulty.value)
-        limit = (limit > max_unit_group_size and max_unit_group_size or limit)
+        local limit = math_min(max_unit_group_size, 1 + selected_difficulty.value + selected_difficulty.value * selected_difficulty.radius_modifier * (1 + selected_difficulty.radius_modifier * math_random(1 + selected_difficulty.value)))
 
         local target_entities = get_target_entity({
             chunk = chunk,
@@ -465,6 +458,10 @@ update_settings[Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_
 update_settings[Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.name] = function (event, params) delay_min = params.setting_value end
 update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name] = function (event, params) max_unit_groups = params.setting_value end
 update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] = function (event, params) max_unit_group_size = params.setting_value end
+
+for _, surface_name in ipairs(Planets or {}) do
+    update_settings[Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"]] = function (event, params) attack_group_probability_modifiers[surface_name] = params.setting_value end
+end
 
 local ME_PREFIX = ME_PREFIX
 local STRING = Types.STRING

@@ -83,7 +83,9 @@ function unit_group_service.on_unit_group_finished_gathering(event)
         entities = entities or set_game() and entities
         entities[idx] = entities[idx] or new_Simple_Queue(Simple_Queue)
         local entity_queue = entities[idx]
-        entity_queue.q[(entity_queue.last or 1) + 1] = {
+        local next_idx = entity_queue.last or 1
+        entity_queue.last = next_idx + 1
+        entity_queue.q[next_idx] = {
             source = GROUP,
             unique_id = unique_id or nil,
             tick = tick,
@@ -92,7 +94,6 @@ function unit_group_service.on_unit_group_finished_gathering(event)
             member_count = member_count,
             type = entity.type or UNIT,
         }
-        entity_queue.last = (entity_queue.last or 1) + 1
 
         ::continue::
     end

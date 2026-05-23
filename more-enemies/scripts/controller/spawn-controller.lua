@@ -3,7 +3,6 @@ local attack_groups
 local groups
 local surface_creation
 local stats_data
-local limits
 local unique_ids
 local unit_groups
 
@@ -19,9 +18,6 @@ local function set_game(event, __game, __storage)
 
     storage.stats_data = new_Stats_Data(Stats_Data, storage.stats_data) or new_Stats_Data(Stats_Data, { tick = (__game or _ENV.game).tick, })
     stats_data = storage.stats_data
-
-    stats_data.limits = stats_data.limits or {}
-    limits = stats_data.limits
 
     storage.attack_groups = storage.attack_groups or {}
     attack_groups = storage.attack_groups
@@ -99,7 +95,6 @@ local Attack_Group_Data = require("scripts.data.attack-group-data")
 local new_Attack_Group_Data = Attack_Group_Data.new
 local Attack_Group_Service = require("scripts.service.attack-group-service")
 local do_random_attack_group = Attack_Group_Service.do_random_attack_group
-
 local Spawn_Service = require("scripts.service.spawn-service")
 local entity_built = Spawn_Service.entity_built
 local on_entity_died = Spawn_Service.on_entity_died
@@ -151,25 +146,25 @@ function spawn_controller.on_tick(event)
     on_tick(event)
 
     if (not planets[event.tick % modulo]) then goto skip end
-    for _, name in ipairs(planets[event.tick % modulo]) do
-        if (do_attack_group[name] and (attack_group_peace_time[name] < event.tick)) then
-            if (not (game and get_surface(name) or set_game().get_surface(name) or {}).valid) then goto continue end
+    for _, surface_name in ipairs(planets[event.tick % modulo]) do
+        if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < event.tick)) then
+            if (not (game and get_surface(surface_name) or set_game().get_surface(surface_name) or {}).valid) then goto continue end
 
-            if (surface_creation and not surface_creation[name]) then
-                if (get_surface(name).index == 1) then
-                    surface_creation[name] = 0
+            if (surface_creation and not surface_creation[surface_name]) then
+                if (get_surface(surface_name).index == 1) then
+                    surface_creation[surface_name] = 0
                 else
-                    surface_creation[name] = event.tick
+                    surface_creation[surface_name] = event.tick
                 end
             end
 
-            if (((attack_group_peace_time[name] or UINT64) + (surface_creation and surface_creation[name] or UINT64)) >= event.tick ) then goto continue end
+            if (((attack_group_peace_time[surface_name] or UINT64) + (surface_creation and surface_creation[surface_name] or UINT64)) >= event.tick ) then goto continue end
 
-            attack_groups[name] = attack_groups[name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = name, })
-            attack_groups[name].tick = attack_groups[name].tick or event.tick
-            if (attack_groups[name].tick > event.tick) then goto continue end
+            attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, })
+            attack_groups[surface_name].tick = attack_groups[surface_name].tick or event.tick
+            if (attack_groups[surface_name].tick > event.tick) then goto continue end
 
-            do_random_attack_group({ surface_name = name, tick = event.tick, })
+            do_random_attack_group({ surface_name = surface_name, tick = event.tick, })
         end
         ::continue::
     end
