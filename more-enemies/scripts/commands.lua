@@ -12,6 +12,11 @@ local locals = {}
 
 local more_enemies_commands = {}
 
+local BOOLEAN = Types.BOOLEAN
+local STRING = Types.STRING
+
+local FALSE = FALSE
+
 function more_enemies_commands.init(event)
     Log.debug("more_enemies_commands.init")
     locals.validate_command(event, function (player)
@@ -19,11 +24,11 @@ function more_enemies_commands.init(event)
         player.print("Initializing anew")
         local maintain_data = true
 
-        if (not (event.parameter == nil or type(event.parameter) ~= "string" and #(string.gsub(event.parameter, " ", "")) < 1)) then
-            if (type(event.parameter) == "boolean") then
+        if (not (event.parameter == nil or type(event.parameter) ~= STRING and #(string.gsub(event.parameter, " ", "")) < 1)) then
+            if (type(event.parameter) == BOOLEAN) then
                 maintain_data = event.parameter
-            elseif (type(event.parameter == "string")) then
-                if (event.parameter == "false") then
+            elseif (type(event.parameter == STRING)) then
+                if (event.parameter == FALSE) then
                     maintain_data = false
                 else
                     maintain_data = true
@@ -43,11 +48,11 @@ function more_enemies_commands.reinit(event)
         player.print("Reinitializing")
         local maintain_data = true
 
-        if (not (event.parameter == nil or type(event.parameter) ~= "string" or #(string.gsub(event.parameter, " ", "")) < 1)) then
-            if (type(event.parameter) == "boolean") then
+        if (not (event.parameter == nil or type(event.parameter) ~= STRING or #(string.gsub(event.parameter, " ", "")) < 1)) then
+            if (type(event.parameter) == BOOLEAN) then
                 maintain_data = event.parameter
-            elseif (type(event.parameter == "string")) then
-                if (event.parameter == "false") then
+            elseif (type(event.parameter == STRING)) then
+                if (event.parameter == FALSE) then
                     maintain_data = false
                 else
                     maintain_data = true
@@ -142,8 +147,8 @@ function locals.validate_command(event, fun)
 end
 
 --[[ TODO: Localise the command descriptions ]]
-commands.add_command("more_enemies.init", "Initialize from scratch. Will erase existing data.", more_enemies_commands.init)
-commands.add_command("more_enemies.reinit", "Tries to reinitialize, attempting to preserve existing data.", more_enemies_commands.reinit)
+commands.add_command("more_enemies.init", "Initialize from scratch. Accepts a single (boolean) parameter (maintain_data). If provided, and false, will erase existing data.", more_enemies_commands.init)
+-- commands.add_command("more_enemies.reinit", "Tries to reinitialize, attempting to preserve existing data.", more_enemies_commands.reinit)
 commands.add_command("more_enemies.print_clone_counts", "Prints the clone counts.", more_enemies_commands.print_clone_counts)
 commands.add_command("more_enemies.print_table", "", more_enemies_commands.print_table)
 commands.add_command("more_enemies.print_storage", "", more_enemies_commands.print_storage)

@@ -4,7 +4,7 @@ local surface_creation
 local game
 local get_surface
 
-local function set_game(__game, __storage)
+local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
     storage.surface_creation = storage.surface_creation or {}
     surface_creation = storage.surface_creation
@@ -39,8 +39,6 @@ function planet_service.on_surface_created(event)
     surface_creation[surface_name] = event.tick
 end
 
-function planet_service.init(__storage)
-    storage = __storage
-end
+function planet_service.init(__storage) storage = __storage or _ENV.storage end
 
 return planet_service

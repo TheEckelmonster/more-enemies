@@ -1,8 +1,3 @@
--- If already defined, return
-if _gleba_settings_constants and _gleba_settings_constants.more_enemies then
-    return _gleba_settings_constants
-end
-
 local Constants = require("libs.constants.constants")
 
 local prefix = "more-enemies-"
@@ -213,9 +208,5 @@ gleba_settings_constants.settings.GLEBA_MIN_SPAWNING_COOLDOWN = {
     default_value = 150,
     minimum_value = 1,
 }
-
-gleba_settings_constants.more_enemies = true
-
-local _gleba_settings_constants = gleba_settings_constants
 
 return gleba_settings_constants

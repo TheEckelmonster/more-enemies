@@ -12,7 +12,7 @@ local Explosive_Biters_Constants = require("libs.constants.mods.explosive-biters
 local Gleba_Constants = require("libs.constants.gleba-constants")
 local Hard_Difficulty_Data = require("scripts.data.difficulties.hard-difficulty-data")
 local Insanity_Difficulty_Data = require("scripts.data.difficulties.insanity-difficulty-data")
-local Log = require("libs.log.log")
+-- local Log = require("libs.log.log")
 local Nauvis_Constants = require("libs.constants.nauvis-constants")
 local Proto_Biters_Constants = require("libs.constants.mods.proto-biters-constants")
 local Settings_Service = require("scripts.service.settings-service")
@@ -40,9 +40,9 @@ static_difficulties[Insanity_Difficulty_Data.value] = static_difficulties[Insani
 local difficulty_utils = {}
 
 function difficulty_utils.get_difficulty(planet, reindex)
-    Log.debug("difficulty_utils.get_difficulty")
-    Log.info(planet)
-    Log.info(reindex)
+    -- Log.debug("difficulty_utils.get_difficulty")
+    -- Log.info(planet)
+    -- Log.info(reindex)
 
     if (storage) then storage.difficulties = storage.difficulties or {} end
 
@@ -58,7 +58,7 @@ function difficulty_utils.get_difficulty(planet, reindex)
         if (    not storage.difficulties[planet]
             or  selected_difficulty ~= planet_difficulty
         ) then
-            Log.debug("reindexing")
+            -- Log.debug("reindexing")
             return difficulty_utils.get_difficulty(planet, true)
         else
             return storage.difficulties[planet]
@@ -70,7 +70,7 @@ end
 
 function locals.set_difficulty(planet, difficulty_setting)
     difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
-    planet = planet or "nauvis"
+    planet = planet or NAUVIS or "nauvis"
 
     local difficulty = {
         -- valid = false
@@ -86,7 +86,7 @@ function locals.set_difficulty(planet, difficulty_setting)
         selected_difficulty = static_difficulties[difficulty_setting]
         vanilla = selected_difficulty == static_difficulties["Vanilla"] or selected_difficulty == static_difficulties[1]
     else
-        Log.error("No difficulty detected")
+        -- Log.error("No difficulty detected")
     end
 
     difficulty = locals.create_difficulty(planet, selected_difficulty, vanilla)
@@ -101,14 +101,14 @@ end
 
 function locals.init_difficulty(planet, difficulty_setting)
     difficulty_setting = difficulty_setting or Vanilla_Difficulty_Data:new()
-    planet = planet or "nauvis"
+    planet = planet or NAUVIS or "nauvis"
 
     local difficulty = {
         valid = false
     }
 
     if (not planet) then
-        Log.warn("planet invalid")
+        -- Log.warn("planet invalid")
         return difficulty
     end
 
@@ -281,13 +281,13 @@ function locals.create_difficulty(planet, selected_difficulty, vanilla)
             }
         end
     elseif (not selected_difficulty) then
-        Log.error("selected difficulty is nil")
-        Log.error("defaulting to vanilla")
+        -- Log.error("selected difficulty is nil")
+        -- Log.error("defaulting to vanilla")
         difficulty.selected_difficulty = Vanilla_Difficulty_Data:new()
     elseif (not selected_difficulty.valid) then
-        Log.warn("selected_difficulty is not valid")
+        -- Log.warn("selected_difficulty is not valid")
         -- If (attempt fixes)
-        Log.error("defaulting to vanilla")
+        -- Log.error("defaulting to vanilla")
         difficulty.selected_difficulty = Vanilla_Difficulty_Data:new()
     end
 
@@ -295,8 +295,6 @@ function locals.create_difficulty(planet, selected_difficulty, vanilla)
     return difficulty
 end
 
-function difficulty_utils.init(__storage)
-    storage = __storage
-end
+function difficulty_utils.init(__storage) storage = __storage or _ENV.storage end
 
 return difficulty_utils

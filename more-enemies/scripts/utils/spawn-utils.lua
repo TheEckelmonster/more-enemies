@@ -1,22 +1,23 @@
 local storage
 local difficulties
-local stats
+local evolution_factors
+local vanilla
 
 local game
 
-local function set_game(__game, __storage)
+local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
-
-    storage.stats = storage.stats or {}
-    stats = storage.stats
 
     storage.difficulties = storage.difficulties or {}
     difficulties = storage.difficulties
 
-    --[[ game ]]
-    game = __game or _ENV.game
+    storage.evolution_factors = storage.evolution_factors or {}
+    evolution_factors = storage.evolution_factors
 
-    Set_Num_Clones()
+    storage.vanilla = storage.vanilla or {}
+    vanilla = storage.vanilla
+
+    game = __game or _ENV.game
 
     return game
 end
@@ -28,32 +29,27 @@ local math_floor = math.floor
 local math_random = math.random
 
 local Constants = Constants
+local Startup_Settings_Constants = Startup_Settings_Constants
 
 local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
 local Settings_Service = require("scripts.service.settings-service")
 local get_BREAM_use_evolution_factor = Settings_Service.get_BREAM_use_evolution_factor
-local get_difficulty = Settings_Service.get_difficulty
+local get_startup_setting = Settings_Service.get_startup_setting
 local Settings_Utils = require("scripts.utils.settings-utils")
 local is_vanilla = Settings_Utils.is_vanilla
+
+local use_evolution_factor = {}
+for _, surface_name in ipairs(Planets or {}) do
+    use_evolution_factor[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"].name, }) or false
+end
 
 local spawn_utils = {}
 spawn_utils.name = "spawn_utils"
 spawn_utils.set_game = set_game
 
-local function loop_len_fun(selected_difficulty, clone_setting, evolution_multiplier)
-    if (not selected_difficulty) then return 0 end
-    clone_setting = clone_setting or 0
-    evolution_multiplier = evolution_multiplier or 0
-
-    if (clone_setting >= 0 and clone_setting <= 1) then
-        return (clone_setting * selected_difficulty.value) * evolution_multiplier + 1
-    else
-        return (clone_setting + selected_difficulty.value) * evolution_multiplier
-    end
-end
-
+local types = { ["unit"] = "unit", ["unit-group"] = "unit-group", }
 function spawn_utils.clone_entity(entity, params)
     -- Log.debug("spawn_utils.clone_entity")
     -- Log.info(entity)
@@ -67,9 +63,8 @@ function spawn_utils.clone_entity(entity, params)
         type = "unit",
         tick = 0,
         surface_name = nil,
-        evolution_factor = 0.01,
+        evolution_factor = 1,
         evolution_multiplier = 1,
-        use_evolution_factor = true
     }
 
     local clone_settings = params.clone_settings
@@ -80,77 +75,71 @@ function spawn_utils.clone_entity(entity, params)
     local surface_name = params.surface_name or entity.surface.valid and entity.surface.name
 
     difficulties = difficulties or set_game() and difficulties
-    difficulties[surface_name] = difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"].name, reindex = true, }) or "Vanilla"]])
 
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty) then return end
 
     local surface = entity.surface
     if (not surface or not surface.valid) then return end
-    if (is_vanilla(surface_name)) then return end
+    vanilla = vanilla or set_game() and vanilla
+    vanilla[surface_name] = vanilla[surface_name] or { is_vanilla = is_vanilla(surface_name), surface_name = surface_name, tick = params.tick + 90, }
+    if (vanilla[surface_name].tick < params.tick) then
+        vanilla[surface_name].is_vanilla = is_vanilla(surface_name)
+        vanilla[surface_name].surface_name = surface_name
+        vanilla[surface_name].tick = (params.tick or 0) + 90
+    end
 
-    if (active_mods and active_mods["BREAM"]) then params.use_evolution_factor = get_BREAM_use_evolution_factor() end
+    -- if (active_mods and active_mods["BREAM"]) then params.use_evolution_factor = get_BREAM_use_evolution_factor() end
 
     local loop_len = 0
-    local clone_setting = 0
 
-    if (clone_settings.type == "unit") then
-        clone_setting = clone_settings.unit
-        loop_len = loop_len_fun(selected_difficulty, clone_setting, params.evolution_multiplier)
-    elseif (clone_settings.type == "unit-group") then
-        clone_setting = clone_settings.unit_group
-        loop_len = loop_len_fun(selected_difficulty, clone_setting, params.evolution_multiplier)
+    evolution_factors = evolution_factors or set_game() or evolution_factors
+    evolution_factors[surface_name] = evolution_factors[surface_name] or { evolution_multiplier = spawn_utils.calc_evolution_multiplier(selected_difficulty, entity.force.get_evolution_factor(surface_name)), tick = (params.tick or 0) + 60, }
+    if (use_evolution_factor[surface_name]) then
+        if (evolution_factors[surface_name].tick > params.tick) then
+            evolution_factors[surface_name].evolution_multiplier = spawn_utils.calc_evolution_multiplier(selected_difficulty, entity.force.get_evolution_factor(surface_name))
+            evolution_factors[surface_name].surface_name = surface_name
+            evolution_factors[surface_name].tick = (params.tick or 0) + 1
+        end
+        clone_settings.evolution_multiplier = evolution_factors[surface_name].evolution_multiplier
     else
-        loop_len = selected_difficulty.value * params.evolution_multiplier
+        clone_settings.evolution_multiplier = (selected_difficulty and selected_difficulty.fallback_evolution_multiplier or (function (arr)
+            if (arr and arr[1] and arr[2]) then
+                arr[1].fallback_evolution_multiplier = arr[2] and (arr[2] ^ 0.5) or 1
+            end
+        end)({ selected_difficulty, selected_difficulty.value }))
+    end
+
+    if (types[params.type]) then
+        loop_len = ((clone_settings[params.type] or 0) + selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)
+                 + (((clone_settings[params.type] or 1) * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)) + 1
+    else
+        loop_len = 1.5 * (selected_difficulty.value * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1) + 1
     end
 
     local clones = {}
-    local rand = math_random(0.01, 1.1)
+    local rand = (math_random(110) + 1) / 100
 
-    local function cloner(entity, find_non_colliding_position, clone, rand)
-        if (not entity.valid) then return end
-        local surface = entity.surface
-        if (not surface or not surface.valid) then return end
-
-        return {
-            clone = clone({
-                position = find_non_colliding_position(entity, entity.position, rand, 0.03) or entity.position,
-                surface = entity.surface.name,
-                force = entity.force
-            }),
+    if (entity and entity.valid and surface and surface.valid) then
+        local find_non_colliding_position = surface.find_non_colliding_position
+        local force_name = entity.force and entity.force.valid and entity.force.name or "enemy"
+        local clone = entity.clone
+        local name = entity.name
+        local source_position = entity.position
+        local position = source_position
+        local clone_tbl = {
+            position = position,
+            surface = surface_name,
+            force = force_name,
         }
-    end
 
-    local function fun(loop_len, clones, obj, rand)
-        if (obj and obj.valid and surface and surface.valid) then
-            local cloner = cloner
-            local find_non_colliding_position = surface.find_non_colliding_position
-            local clone = obj.clone
+        for i = 1, math_floor(loop_len) do
+            if (i % 2 == 1) then position = find_non_colliding_position(name, source_position, rand, 0.03) end
+            clone_tbl.position = position
 
-            for i = 1, math_floor(loop_len) do
-                clones[i] = cloner(obj, find_non_colliding_position, clone, rand)
-            end
-        end
-    end
-
-    if (clone_setting ~= 1) then
-        -- Settings are different from default
-        -- -> use the user settings instead
-        if (params.use_evolution_factor) then
-            -- Log.debug("user settings with evolution_factor")
-            fun(loop_len, clones, entity, rand)
-        else
-            -- Log.debug("user settings without evolution_factor")
-            fun(clone_setting + selected_difficulty.value, clones, entity, rand)
-        end
-    else
-        if (params.use_evolution_factor) then
-            -- Log.debug("standard settings with evolution_factor")
-            fun(loop_len, clones, entity, rand)
-        else
-            -- Log.debug("standard settings without evolution_factor")
-            -- -- No changes -> use selected difficulty
-            fun(selected_difficulty.value, clones, entity, rand)
+            if (not entity.valid) then break end
+            clones[i] = clone(clone_tbl)
         end
     end
 
@@ -164,7 +153,8 @@ function spawn_utils.calc_evolution_multiplier(selected_difficulty, evolution_fa
 
     -- Validate inputs
     evolution_factor = evolution_factor or 0
-    if (not selected_difficulty or not selected_difficulty.valid) then return evolution_factor end
+    -- if (not selected_difficulty or not selected_difficulty.valid) then return evolution_factor end
+    if (not selected_difficulty) then return evolution_factor end
 
     -- Calculate the evolution factor
     -- [Old]
@@ -178,8 +168,34 @@ function spawn_utils.calc_evolution_multiplier(selected_difficulty, evolution_fa
     return value
 end
 
-function spawn_utils.init(__storage)
-    storage = __storage
+
+local update_settings = {}
+
+local NAUVIS = NAUVIS
+local ESCAPED_DASH = ESCAPED_DASH
+local UNDERSCORE = UNDERSCORE
+for _, planet in ipairs(Planets or { NAUVIS, }) do
+    local idx = planet:gsub(ESCAPED_DASH, UNDERSCORE):upper()
+    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_DO_EVOLUTION_FACTOR"] or {}).name] = function (event, params) use_evolution_factor[planet] = params.setting_value end
 end
+
+local STRING = Types.STRING
+function spawn_utils.on_runtime_mod_setting_changed(event, params)
+    if (not event.setting or type(event.setting) ~= STRING) then return end
+    if (not event.setting_type or type(event.setting_type) ~= STRING) then return end
+
+    if (not (event.setting:find(ME_PREFIX, 1, true) == 1)) then return end
+
+    if (update_settings[event.setting]) then
+        update_settings[event.setting](event, params)
+    end
+end
+Settings_Registry:register_setting({
+    func_name = "spawn_service_settings",
+    func = spawn_utils.on_runtime_mod_setting_changed
+})
+
+
+function spawn_utils.init(__storage) storage = __storage or _ENV.storage end
 
 return spawn_utils

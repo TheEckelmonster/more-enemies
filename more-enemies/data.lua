@@ -1,10 +1,4 @@
-local mods = mods
-
 require("prototypes.custom-events.custom-events")
-require("prototypes.spawners.nauvis")
-
-if (mods and mods["space-age"]) then
-    require("prototypes.spawners.gleba")
-end
-
 require("prototypes.map-settings")
+require("prototypes.mod-data.clonable-unit-data")
+require("prototypes.spawners.spawners")

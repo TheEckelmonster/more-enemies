@@ -1,39 +1,59 @@
 local storage
+local difficulties
+
+local game
+
+local function set_game(event, __game, __storage)
+    storage = __storage or _ENV.storage
+
+    storage.difficulties = storage.difficulties or {}
+    difficulties = storage.difficulties
+
+    game = __game or _ENV.game
+
+    return game
+end
 
 local script = script
 local active_mods = script and script.active_mods
 
 local Constants = Constants
 
+local Startup_Settings_Constants = Startup_Settings_Constants or require("settings.startup.startup-settings-constants")
+local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants or require("settings.runtime-global.runtime-global-settings-constants")
+
 local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
-local BREAM_Settings_Constants = require("libs.constants.settings.mods.BREAM.BREAM-settings-constants")
-local Global_Settings_Constants = require("libs.constants.settings.global-settings-constants")
+local Settings_Map = Settings_Map
+
 local Settings_Service = require("scripts.service.settings-service")
-local get_difficulty = Settings_Service.get_difficulty
 local Vanilla_Difficulty_Data = require("scripts.data.difficulties.vanilla-difficulty-data")
 
 local settings_utils = {}
+settings_utils.name = "settings_utils"
+settings_utils.set_game = set_game
+
+local VANILLA = Vanilla_Difficulty_Data.string_val
 
 function settings_utils.is_vanilla(surface_name)
     local return_val = true
 
-    storage.difficulties = storage.difficulties or {}
-    storage.difficulties[surface_name] = storage.difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+    difficulties = difficulties or set_game() and difficulties
+    difficulties[surface_name] = difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficultiesget_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"])
 
-    local selected_difficulty = storage.difficulties[surface_name]
-    if (not selected_difficulty or selected_difficulty.string_val ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
+    local selected_difficulty = difficulties[surface_name]
+    if (not selected_difficulty or selected_difficulty.string_val ~= VANILLA) then return_val = false end
 
-    if (return_val and Settings_Service.get_clone_unit_setting(surface_name) ~= 1) then return_val = false end
-    if (return_val and Settings_Service.get_clone_unit_group_setting(surface_name) ~= 1) then return_val = false end
-    if (return_val and Settings_Service.get_maximum_group_size() ~= Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) then return_val = false end
+    if (return_val and (Settings_Map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNITS"] or 1) ~= 1) then return_val = false end
+    if (return_val and (Settings_Map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNIT_GROUPS"] or 1) ~= 1) then return_val = false end
+    if (return_val and (Settings_Map.runtime_global[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) ~= Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) then return_val = false end
 
     -- Mod added
-    if (return_val and active_mods and active_mods["BREAM"]) then
-        if (return_val and Settings_Service.get_BREAM_difficulty() ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
-        if (return_val and Settings_Service.get_BREAM_clone_units() ~= BREAM_Settings_Constants.settings.BREAM_CLONE_UNITS.default_value) then return_val = false end
-    end
+    -- if (return_val and active_mods and active_mods["BREAM"]) then
+    --     if (return_val and Settings_Service.get_BREAM_difficulty() ~= Vanilla_Difficulty_Data.string_val) then return_val = false end
+    --     if (return_val and Settings_Service.get_BREAM_clone_units() ~= BREAM_Settings_Constants.settings.BREAM_CLONE_UNITS.default_value) then return_val = false end
+    -- end
 
     return return_val
 end
@@ -67,8 +87,6 @@ function settings_utils.get_attack_group_blacklist_names()
     return return_val
 end
 
-function settings_utils.init(__storage)
-    storage = __storage
-end
+function settings_utils.init(__storage) storage = __storage or _ENV.storage end
 
 return settings_utils

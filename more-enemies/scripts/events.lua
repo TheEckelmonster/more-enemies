@@ -9,87 +9,171 @@ local deepcopy = Deepcopy
 Did_Init = false
 
 Constants = require("scripts.constants.constants")
+Custom_Events = require("prototypes.custom-events.custom-events")
+Startup_Settings_Constants = require("settings.startup.startup-settings-constants")
+Runtime_Global_Settings_Constants = require("settings.runtime-global.runtime-global-settings-constants")
 
 Data_Utils = require("__TheEckelmonster-core-library__.libs.utils.data-utils")
-Settings_Service = require("__TheEckelmonster-core-library__.scripts.services.settings-serivce")
+_Settings_Service = require("__TheEckelmonster-core-library__.scripts.services.settings-serivce")
+Settings_Service = require("scripts.service.settings-service")
 
-Mod_Settings = require("scripts.constants.settings.mod-settings")
-local Mod_Settings = Mod_Settings
+local FUNCTION = Types.FUNCTION
+local TABLE = Types.TABLE
+local STRING = Types.STRING
+
+local EMPTY = EMPTY
+local ESCAPED_DASH = ESCAPED_DASH
+local NEUTRAL = NEUTRAL
+local PLAYER = PLAYER
+local UNDERSCORE = UNDERSCORE
+
+
+local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
+
+local prototypes = prototypes
+local mod_data = prototypes.mod_data
+local clonable_units = mod_data[Constants.mod_name .. "-clonable-unit-data"]
+local planets = mod_data[Constants.mod_name .. "-planet-data"]
+
+Clonable_Units = clonable_units.data
+
+Planets = {}
 
 Filters = {}
 Forces = {
-    ["player"] = 1,
-    ["neutral"] = 1,
+    [PLAYER] = 1,
+    [NEUTRAL] = 1,
 }
 
 Valid_Surfaces = {}
 
-for _, planet in pairs(Constants.DEFAULTS.planets) do
-    Valid_Surfaces[planet.string_val] = planet.string_val
-end
-
 Valid_Sources = {
-    ["spawned"] = "spawned",
-    ["group"] = "group",
-    ["built"] = "built",
+    [SPAWNED] = SPAWNED,
+    [GROUP] = GROUP,
+    [BUILT] = BUILT,
 }
+
+
+local string_find = string.find
 
 Clone_Unit_Setting = {}
 Clone_Unit_Group_Setting = {}
 Max_Num_Unit_Clones = {}
 Max_Num_Unit_Group_Clones = {}
-Max_Num_Modded_Clones = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings.MAXIMUM_NUMBER_OF_MODDED_CLONES.name, }) or 500
+Max_Num_Modded_Clones = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAXIMUM_NUMBER_OF_MODDED_CLONES.name, }) or 500
 
-for _, planet in pairs(Constants.DEFAULTS.planets) do
-    Clone_Unit_Setting[planet.string_val] = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings["CLONE_" .. planet.string_val:upper() .. "_UNITS"].name, }) or 1
-    Clone_Unit_Group_Setting[planet.string_val] = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings["CLONE_" .. planet.string_val:upper() .. "_UNIT_GROUPS"].name, }) or 1
-    Max_Num_Unit_Clones[planet.string_val] = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings["MAXIMUM_NUMBER_OF_SPAWNED_CLONES_" .. planet.string_val:upper()].name, }) or 1
-    Max_Num_Unit_Group_Clones[planet.string_val] = Data_Utils.get_runtime_global_setting({ setting = Mod_Settings["MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES_" .. planet.string_val:upper()].name, }) or 1
+Limits = {}
+
+for planet, _ in pairs(planets.data or { [NAUVIS] = true, }) do
+    Planets[#Planets+1] = planet
+    Valid_Surfaces[planet] = planet
+
+    local idx = planet:gsub(ESCAPED_DASH, UNDERSCORE):upper()
+    Clone_Unit_Setting[planet] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name, })
+    Clone_Unit_Group_Setting[planet] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name, })
+    for unit, _ in pairs(Clonable_Units) do
+        local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+        Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
+        if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
+            Max_Num_Unit_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, })
+        end
+        Max_Num_Unit_Group_Clones[planet] = Max_Num_Unit_Group_Clones[planet] or {}
+        if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"]) then
+            Max_Num_Unit_Group_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, })
+        end
+    end
 end
 
-Limits = {
-    ["spawned"] = Max_Num_Unit_Clones,
-    ["group"] = Max_Num_Unit_Group_Clones,
-    ["built"] = Max_Num_Modded_Clones,
-}
+local Settings_Service = Settings_Service
+local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
+local get_startup_setting = Settings_Service.get_startup_setting
+
+local settings_registry = { registry = {}, }
+Settings_Registry = settings_registry
+function Settings_Registry:register_setting(params)
+    if (not params) then return end
+    if (type(params.func_name) ~= STRING) then return end
+    if (type(params.func) ~= FUNCTION) then return end
+
+    if (not self or not Settings_Registry) then
+        self = self or {}
+        Settings_Registry = self
+    end
+    self.registry = self.registry or {}
+    self.registry[#self.registry+1] = { func_name = params.func_name, func = params.func, }
+end
+
+for _, planet in ipairs(Planets or { NAUVIS, }) do
+    for unit, _ in pairs(Clonable_Units) do
+        local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+        if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
+            Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
+            Max_Num_Unit_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, })
+        end
+        if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"]) then
+            Max_Num_Unit_Group_Clones[planet] = Max_Num_Unit_Group_Clones[planet] or {}
+            Max_Num_Unit_Group_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, })
+        end
+    end
+end
+
+function Get_Clone_Settings()
+    storage.limits = storage.limits or {}
+    Limits = storage.limits
+    Limits[SPAWNED] = Max_Num_Unit_Clones
+    Limits[GROUP] = Max_Num_Unit_Group_Clones
+    Limits[BUILT] = Max_Num_Modded_Clones
+
+    for _, planet in ipairs(Planets or { NAUVIS, }) do
+        for unit, _ in pairs(Clonable_Units) do
+            local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+            if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
+                Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
+                Max_Num_Unit_Clones[planet][unit] = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, reindex = true, })
+            end
+            if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"]) then
+                Max_Num_Unit_Group_Clones[planet] = Max_Num_Unit_Group_Clones[planet] or {}
+                Max_Num_Unit_Group_Clones[planet][unit] = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, reindex = true, })
+            end
+        end
+    end
+
+    return Limits
+end
 
 function Set_Num_Clones()
     storage.num_clones = storage.num_clones or {}
 
+    Get_Clone_Settings()
+
     for k, _ in pairs(Limits) do
-        storage.num_clones[k] = storage.num_clones[k] or {}
-        for _, planet in pairs(Constants.DEFAULTS.planets) do
-            storage.num_clones[k][planet.string_val] = storage.num_clones[k][planet.string_val] or 0
+        storage.num_clones[k] = type(storage.num_clones[k]) == TABLE and storage.num_clones[k] or {}
+        for planet, _ in pairs(planets.data or {}) do
+            storage.num_clones[k][planet] = type(storage.num_clones[k][planet]) == TABLE and storage.num_clones[k][planet] or {}
+            for u, _ in pairs(clonable_units.data) do
+                storage.num_clones[k][planet][u] = storage.num_clones[k][planet][u] or 0
+            end
         end
     end
 
     return storage.num_clones
 end
 
-local on_entity_died_filter = {}
 local script_raised_built_filter = {}
 
-local Spawn_Constants = require("libs.constants.spawn-constants")
-
-for _, v in pairs(Spawn_Constants.name) do
-    table.insert(script_raised_built_filter, { filter = "name", name = v, })
-    on_entity_died_filter[v] = 1
-end
-
-Filters.on_entity_died = on_entity_died_filter
+Filters.on_entity_died = require("scripts.filters.on-entity-died-filter")
 Filters.script_raised_built = script_raised_built_filter
 
 ---
 
+local Custom_Events = Custom_Events
 local Event_Handler = Event_Handler
 
 local Initialization = require("scripts.initialization")
-local Custom_Events = require("prototypes.custom-events.custom-events")
 local Chunk_Controller = require("scripts.controller.chunk-controller")
 local Entity_Controller = require("scripts.controller.entity-controller")
 local Planet_Controller = require("scripts.controller.planet-controller")
 local Spawn_Controller = require("scripts.controller.spawn-controller")
-Spawn_Controller.Entity_Controller = Entity_Controller
 local Unit_Group_Controller = require("scripts.controller.unit-group-controller")
 
 local Log_Settings = require("__TheEckelmonster-core-library__.libs.log.log-settings")
@@ -98,17 +182,30 @@ local Settings_Controller = require("__TheEckelmonster-core-library__.scripts.co
 --
 -- Register events
 
+local events = {
+    [Chunk_Controller.name] = Chunk_Controller,
+    [Entity_Controller.name] = Entity_Controller,
+    [Planet_Controller.name] = Planet_Controller,
+    [Spawn_Controller.name] = Spawn_Controller,
+    [Unit_Group_Controller.name] = Unit_Group_Controller,
+    [Settings_Controller.name] = Settings_Controller,
+}
+
+---
+
 local to_init_storage = {
     Chunk_Controller,
     Entity_Controller,
     Planet_Controller,
     Spawn_Controller,
     Unit_Group_Controller,
-    -- Settings_Controller,
+    Settings_Service,
+
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),
     require("scripts.service.spawn-service"),
+    require("scripts.service.quadtree-service"),
     require("scripts.service.unit-group-service"),
     require("scripts.utils.attack-group-utils"),
     require("scripts.utils.difficulty-utils"),
@@ -121,60 +218,52 @@ function to_init_storage.reinit_all(event)
         v.init(storage)
     end
 end
-Event_Handler:register_event({
-    event_name = Custom_Events.me_on_init_complete.name,
-    source_name = "to_init_storage.reinit_all",
-    func_name = "to_init_storage.reinit_all",
-    func = to_init_storage.reinit_all,
+Event_Handler:register_events({
+    {
+        event_name = Custom_Events.me_on_init_complete.name,
+        source_name = "to_init_storage.reinit_all",
+        func_name = "to_init_storage.reinit_all",
+        func = to_init_storage.reinit_all,
+    },
+    {
+        event_name = Custom_Events.me_migrations_applied.name,
+        source_name = "to_init_storage.reinit_all",
+        func_name = "to_init_storage.reinit_all",
+        func = to_init_storage.reinit_all,
+    },
+    {
+        event_name = "on_configuration_changed",
+        source_name = "to_init_storage.on_configuration_changed",
+        func_name = "to_init_storage.on_configuration_changed",
+        func = to_init_storage.reinit_all,
+    }
 })
 
-local to_set_game = {
-    Entity_Controller,
-    Spawn_Controller,
-    require("scripts.service.attack-group-service"),
-    require("scripts.service.planet-service"),
-    require("scripts.service.spawn-service"),
-    require("scripts.service.unit-group-service"),
-    require("scripts.utils.attack-group-utils"),
-    require("scripts.utils.spawn-utils"),
-}
-
-function to_set_game.set_game_all(event)
-    for _, v in ipairs(to_set_game) do
-        v.set_game()
-    end
-end
-Event_Handler:register_event({
-    event_name = Custom_Events.me_on_init_complete.name,
-    source_name = "to_set_game.set_game_all",
-    func_name = "to_set_game.set_game_all",
-    func = to_set_game.set_game_all,
-})
+require("scripts.to-set-game")
 
 local globals = {}
 globals.set_num_clones = Set_Num_Clones
-Event_Handler:register_event({
-    event_name = Custom_Events.me_on_init_complete.name,
-    source_name = "globals.set_num_clones",
-    func_name = "globals.set_num_clones",
-    func = globals.set_num_clones,
+Event_Handler:register_events({
+    {
+        event_name = Custom_Events.me_on_init_complete.name,
+        source_name = "globals.set_num_clones",
+        func_name = "globals.set_num_clones",
+        func = globals.set_num_clones,
+    },
+    {
+        event_name = "on_configuration_changed",
+        source_name = "globals.set_num_clones",
+        func_name = "globals.set_num_clones",
+        func = globals.set_num_clones,
+    }
 })
 
 ---
 
-local events = {
-    [Chunk_Controller.name] = Chunk_Controller,
-    [Entity_Controller.name] = Entity_Controller,
-    [Planet_Controller.name] = Planet_Controller,
-    [Spawn_Controller.name] = Spawn_Controller,
-    [Unit_Group_Controller.name] = Unit_Group_Controller,
-    [Settings_Controller.name] = Settings_Controller,
-}
-
 Init = false
 function events.on_init()
     Init = true
-    if (type(storage) ~= "table") then return end
+    if (type(storage) ~= TABLE) then return end
 
     storage.handles = {
         log_handle = {},
@@ -215,8 +304,8 @@ local initialized_from_load = false
 Load = false
 function events.on_load()
     Load = true
-    if (type(storage.handles) == "table") then
-        local return_val = false
+    if (type(storage.handles) == TABLE) then
+        local return_val = nil
         initialized_from_load = true
         return_val = initialized_from_load and Settings_Service.init({ storage_ref = storage.handles.setting_handle })
         if (not return_val) then initialized_from_load = false end
@@ -252,15 +341,13 @@ Event_Handler:register_event({
 
 Configuration_Changed = false
 
-local settings_service = require("scripts.service.settings-service")
-local get_difficulty = settings_service.get_difficulty
 function events.on_configuration_changed(event)
     Configuration_Changed = true
     if (event.mod_startup_settings_changed) then
         storage.difficulties = storage.difficulties or {}
 
-        for surface_name, _ in pairs(Constants.DEFAULTS.planets or {}) do
-            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_difficulty(surface_name)]])
+        for _, surface_name in ipairs(Planets or {}) do
+            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
         end
     end
 
@@ -270,7 +357,7 @@ function events.on_configuration_changed(event)
             if (not Did_Init) then
                 game.print({ Constants.mod_name .. ".on-configuration-changed", Constants.mod_name })
 
-                if (type(storage.handles) ~= "table" or not initialized_from_load) then
+                if (type(storage.handles) ~= TABLE or not initialized_from_load) then
                     storage.handles = {
                         log_handle = {},
                         setting_handle = {},
@@ -294,11 +381,19 @@ function events.on_configuration_changed(event)
                 Initialization.init({ maintain_data = true })
 
                 for _, v in ipairs(to_init_storage) do
-                    v.init(storage)
+                    v.init(_ENV.storage)
                 end
             end
         end
     end
+
+    storage.settings_map = storage.settings_map or {}
+    storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+    Settings_Map = storage.settings_map
+    for _, setting_tbl in pairs(Runtime_Global_Settings_Constants.settings or {}) do
+        Settings_Map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, }) or setting_tbl.default_value
+    end
+
     Configuration_Changed = false
 end
 Event_Handler:register_event({
@@ -306,4 +401,48 @@ Event_Handler:register_event({
     source_name = "events.on_configuration_changed",
     func_name = "events.on_configuration_changed",
     func = events.on_configuration_changed,
+})
+
+local string_match = string.match
+local string_gsub = string.gsub
+local string_upper = string.upper
+Event_Handler:register_event({
+    event_name = "on_runtime_mod_setting_changed",
+    source_name = "settings_map.on_runtime_mod_setting_changed",
+    func_name = "settings_map.on_runtime_mod_setting_changed",
+    func = function (event)
+        if (not event or not event.setting or not string_find(event.setting, ME_PREFIX_ESCAPED)) then return end
+        local trimmed = string_match(event.setting, ME_PREFIX_ESCAPED .. "(.*)")
+        local subbed_to_upper = string_upper(string_gsub(trimmed, "%-", "_"))
+
+        storage.settings_map = storage.settings_map or {}
+        Settings_Map = storage.settings_map
+
+        local setting_value = nil
+        local setting = nil
+        local planet = nil
+        if (Runtime_Global_Settings_Constants.settings[subbed_to_upper]) then
+            Settings_Map.runtime_global = Settings_Map.runtime_global or {}
+            planet = Runtime_Global_Settings_Constants.settings[subbed_to_upper].planet
+            Settings_Map.runtime_global[event.setting] = get_runtime_global_setting({ setting = event.setting, reindex = true, })
+            setting_value = Settings_Map.runtime_global[event.setting]
+            setting = Runtime_Global_Settings_Constants.settings[subbed_to_upper]
+        elseif (Startup_Settings_Constants.settings[subbed_to_upper]) then
+            Settings_Map.startup = Settings_Map.startup or {}
+            planet = Startup_Settings_Constants.settings[subbed_to_upper].planet
+            Settings_Map.startup[event.setting] = get_startup_setting({ setting = event.setting, reindex = true, })
+            setting_value = Settings_Map.startup[event.setting]
+            setting = Startup_Settings_Constants.settings[subbed_to_upper]
+        end
+
+        for _, registered in ipairs(Settings_Registry.registry or {}) do
+            if (registered.func and type(registered.func) == FUNCTION) then registered.func(event, { setting_constant = setting, setting_value = setting_value, surface_name = planet, }) end
+        end
+    end,
+})
+
+Event_Handler:set_event_position({
+    event_name = "on_runtime_mod_setting_changed",
+    source_name = "settings_map.on_runtime_mod_setting_changed",
+    new_position = 1,
 })

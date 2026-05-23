@@ -1,8 +1,3 @@
--- If already defined, return
-if _nauvis_settings_constants and _nauvis_settings_constants.more_enemies then
-    return _nauvis_settings_constants
-end
-
 local Constants = require("libs.constants.constants")
 
 local prefix = "more-enemies-"
@@ -213,9 +208,5 @@ nauvis_settings_constants.settings.NAUVIS_SPITTER_MIN_SPAWNING_COOLDOWN = {
     default_value = 150,
     minimum_value = 1,
 }
-
-nauvis_settings_constants.more_enemies = true
-
-local _nauvis_settings_constants = nauvis_settings_constants
 
 return nauvis_settings_constants
