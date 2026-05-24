@@ -1,5 +1,6 @@
 local storage
 local difficulties
+local settings_map
 
 local game
 
@@ -8,6 +9,12 @@ local function set_game(event, __game, __storage)
 
     storage.difficulties = storage.difficulties or {}
     difficulties = storage.difficulties
+
+    storage.settings_map = storage.settings_map or {}
+    settings_map = storage.settings_map
+
+    storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+    storage.settings_map.startup = storage.settings_map.startup or {}
 
     game = __game or _ENV.game
 
@@ -45,9 +52,11 @@ function settings_utils.is_vanilla(surface_name)
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty or selected_difficulty.string_val ~= VANILLA) then return_val = false end
 
-    if (return_val and (Settings_Map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNITS"] or 1) ~= 1) then return_val = false end
-    if (return_val and (Settings_Map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNIT_GROUPS"] or 1) ~= 1) then return_val = false end
-    if (return_val and (Settings_Map.runtime_global[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) ~= Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) then return_val = false end
+    settings_map = settings_map or set_game() and settings_map
+    settings_map.runtime_global = settings_map.runtime_global or {}
+    if (return_val and (settings_map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNITS"] or 1) ~= 1) then return_val = false end
+    if (return_val and (settings_map.runtime_global[ME_PREFIX .. surface_name:gsub("%-", "_"):upper() .. "_CLONE_UNIT_GROUPS"] or 1) ~= 1) then return_val = false end
+    if (return_val and (settings_map.runtime_global[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) ~= Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value) then return_val = false end
 
     -- Mod added
     -- if (return_val and active_mods and active_mods["BREAM"]) then

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.8
+Date: 2026-05-24
+  Bug Fixes:
+    - Added missing existence check before accessing a local reference to storage
+    - Fixed migraton script not generating the storage.surfaces table properly
+---------------------------------------------------------------------------------------------------
 Version: 0.7.7
 Date: 2026-05-23
   Bug Fixes:
