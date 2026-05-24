@@ -1,7 +1,7 @@
 local ipairs = ipairs
 
 local versions = {
-    { major = 0, minor =  7, bug_fix = 7, },
+    { major = 0, minor =  7, bug_fix = 8, },
 }
 
 local return_val = {}

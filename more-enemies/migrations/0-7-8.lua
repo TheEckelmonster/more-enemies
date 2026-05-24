@@ -58,6 +58,8 @@ local function migrate(params)
 
     game = game or _ENV.game
 
+    storage.surfaces = {}
+
     local get_surface = game.get_surface
     local tick =  game.tick
     for name, _ in pairs(planets.data or {}) do
@@ -67,8 +69,7 @@ local function migrate(params)
             storage.surface_creation = storage.surface_creation or {}
             storage.surface_creation[name] = storage.surface_creation[name] or surface.index == 1 and 0 or tick
 
-            storage.surfaces = {}
-            storage.surfaces[name] = {}
+            storage.surfaces[name] = storage.surfaces[name] or {}
             storage.surfaces[name].iterator = surface.get_chunks()
 
             local iterator = storage.surfaces[name].iterator

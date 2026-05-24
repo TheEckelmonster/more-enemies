@@ -19,14 +19,15 @@ To_Set_Game = To_Set_Game or {
 
 function Set_game_all(event)
     local __game, __storage = _ENV.game, _ENV.storage
+    __storage.settings_map = __storage.settings_map or {}
+    __storage.settings_map.runtime_global = __storage.settings_map.runtime_global or {}
+    Settings_Map = __storage.settings_map
+
     for _, v in ipairs(To_Set_Game.to_set or {}) do
         if (type(v.init) == "function") then
             v.set_game(event, __game, __storage)
         end
     end
-    __storage.settings_map = __storage.settings_map or {}
-    __storage.settings_map.runtime_global = __storage.settings_map.runtime_global or {}
-    Settings_Map = __storage.settings_map
 end
 To_Set_Game.set_game_all = Set_game_all
 Event_Handler:register_events({
