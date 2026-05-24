@@ -24,7 +24,7 @@ Date: 2026-05-22
       -> i.e. Vulcanus (explosive), Aquilo (frost), Fulgora (flying/electric)
   Misc:
     - Enemy unit and unit-group cloning limits are now per type of individual entity  rather than a total aggregate per surface
-      -> i.e 150 small-biters, 150 medium-biters, 150, big-biters, 150 behemoth-biters, etc. for each individual unit/type
+      -> i.e 150 small-biters, 150 medium-biters, 150 big-biters, 150 behemoth-biters, etc. for each individual unit/type
     - Improved performance somewhat further
       - Performance has improved sufficiently to allow true multiplicative scaling again
       - Added/implemented a pseudo-kinematics engine for real-time load shedding of processes and events to only core required systems proportionaly when under increasing system stress
