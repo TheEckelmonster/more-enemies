@@ -48,17 +48,14 @@ local function migrate(params)
 
     local storage = _ENV.storage
 
+    game = game or _ENV.game
+
     storage.settings_map = storage.settings_map or {}
     storage.settings_map.startup = storage.settings_map.startup or {}
     storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
 
     storage.surface_creation = storage.surface_creation or {}
-
-    storage.settings_map = storage.settings_map or {}
-
-    game = game or _ENV.game
-
-    storage.surfaces = {}
+    storage.surfaces = storage.surfaces or {}
 
     local get_surface = game.get_surface
     local tick =  game.tick
@@ -66,7 +63,6 @@ local function migrate(params)
         local surface = get_surface(name)
 
         if (surface and surface.valid) then
-            storage.surface_creation = storage.surface_creation or {}
             storage.surface_creation[name] = storage.surface_creation[name] or surface.index == 1 and 0 or tick
 
             storage.surfaces[name] = storage.surfaces[name] or {}
@@ -74,13 +70,13 @@ local function migrate(params)
 
             local iterator = storage.surfaces[name].iterator
             if (iterator and iterator.valid) then
-                storage.surfaces[name].chunks = {}
+                storage.surfaces[name].chunks = storage.surfaces[name].chunks or {}
                 local chunks = storage.surfaces[name].chunks
 
-                storage.surfaces[name].spawner_map = {}
+                storage.surfaces[name].spawner_map = storage.surfaces[name].spawner_map or {}
                 local spawner_map = storage.surfaces[name].spawner_map
 
-                storage.surfaces[name].chunk_map =  {}
+                storage.surfaces[name].chunk_map = storage.surfaces[name].chunk_map or {}
                 local chunk_map = storage.surfaces[name].chunk_map
 
                 local is_chunk_generated = surface.is_chunk_generated
@@ -134,7 +130,7 @@ local function migrate(params)
 
     for k, v in pairs(storage.entities or {}) do
         if (not v.q or not v.first or not v.last) then
-            storage.entities[k] = new_Simple_Queue(Simple_Queue, { first = 1, last = #v + 1, q = v, })
+            storage.entities[k] = new_Simple_Queue(Simple_Queue, { first = 1, last = #v, q = v, })
         end
     end
 
