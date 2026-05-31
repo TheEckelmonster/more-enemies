@@ -1,8 +1,11 @@
 local storage
+local stats_data
 local attack_groups
 local chunks_arr
 local chunk_maps
 local entities
+local entity_chunks
+local entity_maps
 local groups
 local limits
 local num_clones
@@ -10,7 +13,6 @@ local opts
 local pathables
 local settings_map
 local spawner_maps
-local stats_data
 local surfaces
 local unique_ids
 local unit_groups
@@ -18,11 +20,15 @@ local unit_groups
 local game
 local get_entity_by_unit_number
 local game_print
+local surface_funcs
 
 local Set_Num_Clones = Set_Num_Clones
+local Surfaces = Surfaces
 
 local Stats_Data = require("scripts.data.stats-data")
 local new_Stats_Data = Stats_Data.new
+
+local string_find = string.find
 
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
@@ -63,17 +69,27 @@ local function set_game(event, __game, __storage)
     storage.chunk_maps = storage.chunk_maps or {}
     chunk_maps = storage.chunk_maps
 
+    storage.entity_chunks = storage.entity_chunks or {}
+    entity_chunks = storage.entity_chunks
+
+    storage.entity_maps = storage.entity_maps or {}
+    entity_maps = storage.entity_maps
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
     for _, planet in ipairs(Planets or {}) do
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
         spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
     end
 
@@ -88,6 +104,29 @@ local function set_game(event, __game, __storage)
     get_entity_by_unit_number = game.get_entity_by_unit_number
     game_print = game.print
 
+    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    Surface_Funcs = _ENV.Surface_Funcs
+
+    _ENV.Surfaces = _ENV.Surfaces or {}
+    Surfaces = _ENV.Surfaces
+    Surfaces.list = Surfaces.list or {}
+    for name, surface in pairs(game.surfaces) do
+        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+            Surfaces[name] = surface
+            Surfaces.list[surface.index] = name
+
+            Surface_Funcs[name] = Surface_Funcs[name] or {}
+            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
+            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+        else
+            Surfaces[name], Surface_Funcs[name] = nil, nil
+        end
+    end
+    surface_funcs = Surface_Funcs
+
     num_clones = Set_Num_Clones()
 
     return game
@@ -97,9 +136,9 @@ local ipairs = ipairs
 
 local math_floor = math.floor
 local math_huge = math.huge
-
+local math_max = math.max
+local math_min = math.min
 local table_insert = table.insert
-local table_remove = table.remove
 local type = type
 
 local defines = defines
@@ -113,13 +152,27 @@ local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 local Valid_Sources = Valid_Sources
 local Valid_Surfaces = Valid_Surfaces
 
+local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
+local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
+local Quadtree_Service = require("scripts.service.quadtree-service")
+local add_node = Quadtree_Service.add_node
 local Simple_Queue = require("scripts.data.simple-queue")
 local new_Simple_Queue = Simple_Queue.new
-local Quadtree_Service = require("scripts.service.quadtree-service")
-local remove_node = Quadtree_Service.remove_node
-
+local Settings_Utils = require("scripts.utils.settings-utils")
 local Spawn_Utils = require("scripts.utils.spawn-utils")
 local clone_entity = Spawn_Utils.clone_entity
+
+local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
+
+local names = {}
+
+if (blacklist_names) then
+    for _, v in pairs(blacklist_names) do
+        table_insert(names, v)
+    end
+end
 
 local clones_per_tick = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.name, }) or Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
@@ -166,72 +219,78 @@ function spawn_service.on_tick(event)
 
     clone_count = 0
     local idx = event.tick % 60 + 1
-    if (pathables[idx]) then
-        if (not pathables[idx][1]) then
+    if (    pathables[idx]
+        and pathables[idx].q
+    ) then
+        pathables[idx].first = pathables[idx].first or 1
+        pathables[idx].last = pathables[idx].last or 1
+
+        if (pathables[idx].last - pathables[idx].first < 0) then
             pathables[idx] = nil
         else
-            unit_groups.i, unit_groups.cap = 1, 8
+            local pathable_queue = pathables[idx]
+            unit_groups.i, unit_groups.cap = pathable_queue.first, pathable_queue.last - pathable_queue.first + 1
             unit_groups.loop_cap, unit_groups.loops = 1 + unit_groups.cap * 1.5, 0
-
-            local pathable = pathables[idx]
 
             local requesting_unit_group, release = nil, false
             local group, unit_group = nil, nil
             local to = nil
             local group_queue
+            local enemy_idx = 0
 
-            while unit_groups.i < unit_groups.cap and unit_groups.loops < unit_groups.loop_cap do
+            while unit_groups.i <= unit_groups.cap and unit_groups.loops <= unit_groups.loop_cap do
                 if (((stats_data or set_game() and stats_data).current.total or 1) > 512) then break end
 
                 release = false
-                requesting_unit_group = pathable[unit_groups.i]
+                local first = pathable_queue.first
+                requesting_unit_group = pathable_queue.q[first]
                 if (not requesting_unit_group) then break end
 
-                if (    not groups[requesting_unit_group.unique_id]
-                    or  not groups[requesting_unit_group.unique_id].group
-                    or  not groups[requesting_unit_group.unique_id].group.valid
+                local grp = groups[requesting_unit_group.unique_id]
+                if (    not grp
+                    or  not grp.group
+                    or  not grp.group.valid
                 ) then
-                    table_remove(pathable, unit_groups.i)
-                    unit_groups.loop_cap = unit_groups.loop_cap - 1
+                    if (pathable_queue.first >= pathable_queue.last) then
+                        pathable_queue.first, pathable_queue.last = 1, 1
+                    end
                     to = REMOVE
                     goto remove
                 end
 
                 do
-                    local unit_number = table_remove(requesting_unit_group.enemies)
-                    if (not unit_number) then
-                        table_remove(pathable, unit_groups.i)
+                    requesting_unit_group.j = requesting_unit_group.j or #requesting_unit_group.enemies
+                    local unit_number = requesting_unit_group.enemies[requesting_unit_group.j]
+                    requesting_unit_group.enemies[requesting_unit_group.j] = nil
+
+                    if (    not unit_number
+                        and requesting_unit_group.j <= 0
+                    ) then
                         release = true
                         goto release_group
                     else
-                        local unit_group_limit = requesting_unit_group.limit or 0
+                        local unit_group_limit = requesting_unit_group.num_enemies or requesting_unit_group.limit or 42
                         local add_member = groups[requesting_unit_group.unique_id].group.add_member
                         local enemy, uidx = nil, unit_number % 60 + 1
-                        unit_groups.j = 1
 
-                        local num_entities = (group_queue and (group_queue.last - group_queue.first) or (function (arr)
-                            arr[1][arr[2]] = new_Simple_Queue(Simple_Queue)
-                            arr[3] = arr[1][arr[2]]
-                            return arr[3].last - arr[3].first
-                        end)({ entities, uidx, group_queue}))
+                        requesting_unit_group.j = requesting_unit_group.j or enemy_idx or #requesting_unit_group.enemies
+                        requesting_unit_group.enemies_added = requesting_unit_group.enemies_added or 0
 
-                        if (num_entities >= (unit_group_limit or 400)) then
-                            table_remove(pathable, unit_groups.i)
+                        if (requesting_unit_group.enemies_added >= unit_group_limit) then
                             unit_groups.loop_cap = unit_groups.loop_cap - 1
                             goto skip
                         end
 
-                        while unit_groups.j < unit_groups.cap do
-                            if (unit_groups.j >= unit_group_limit or (unit_groups.j + requesting_unit_group.member_count) >= max_unit_group_size) then
-                                table_remove(pathable, unit_groups.i)
+                        while requesting_unit_group.j >= 0 do
+                            if (requesting_unit_group.enemies_added >= math_min(unit_group_limit, max_unit_group_size)) then
                                 release = true
                                 goto release_group
                             end
 
                             enemy = get_entity_by_unit_number(unit_number)
                             if (enemy and enemy.valid) then
+
                                 if (num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and limits[GROUP][requesting_unit_group.surface_name][enemy.name] or 400)) then
-                                    table_remove(pathable, unit_groups.i)
                                     unit_groups.loop_cap = unit_groups.loop_cap - 1
                                     goto skip
                                 end
@@ -240,10 +299,9 @@ function spawn_service.on_tick(event)
                                 enemy.ai_settings.allow_try_return_to_spawner = false
                                 enemy.ai_settings.join_attacks = true
                                 add_member(enemy)
-                                requesting_unit_group.member_count = requesting_unit_group.member_count + 1
 
                                 clone_count = clone_count + 1
-                                num_entities = num_entities + 1
+                                requesting_unit_group.enemies_added = requesting_unit_group.enemies_added + 1
 
                                 uidx = unit_number % 60 + 1
 
@@ -262,20 +320,19 @@ function spawn_service.on_tick(event)
                                     surface_name = requesting_unit_group.surface_name,
                                 }
 
-                                if (    num_entities >= (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and limits[GROUP][requesting_unit_group.surface_name][enemy.name] or 400)
-                                    or  requesting_unit_group.member_count >= (requesting_unit_group.limit or max_unit_group_size or 0)
+                                if (    requesting_unit_group.enemies_added >= (requesting_unit_group.num_enemies or max_unit_group_size)
                                     or  not requesting_unit_group.enemies[1]
                                 ) then
-                                    table_remove(pathable, unit_groups.i)
                                     release = true
                                     goto release_group
                                 end
                             end
 
-                            unit_number = table_remove(requesting_unit_group.enemies)
-                            unit_groups.j = unit_groups.j + 1
+                            enemy_idx = requesting_unit_group.j
+                            unit_number = requesting_unit_group.enemies[enemy_idx]
+                            requesting_unit_group.enemies[enemy_idx] = nil
+                            requesting_unit_group.j = enemy_idx - 1
                             if (not unit_number) then
-                                table_remove(pathable, unit_groups.i)
                                 unit_groups.loop_cap = unit_groups.loop_cap - 1
                                 goto skip
                             end
@@ -295,7 +352,6 @@ function spawn_service.on_tick(event)
                         or  not group.group
                         or  not group.group.valid
                     ) then
-                        unit_groups.loop_cap = unit_groups.loop_cap - 1
                         to = REMOVE
                         goto remove
                     else
@@ -308,7 +364,10 @@ function spawn_service.on_tick(event)
                         if (unit_group.valid) then unit_group.release_from_spawner() end
                         if (unit_group.valid) then unit_group.start_moving() end
 
-                        table_remove(pathable, unit_groups.i)
+                        pathable_queue.first = pathable_queue.first or 1
+                        local remove_idx = pathable_queue.first
+                        pathable_queue.first = remove_idx + 1
+                        pathable_queue.q[remove_idx] = nil
                         unit_groups.cap = unit_groups.cap - 1
                         unit_groups.loop_cap = unit_groups.loop_cap - 1
 
@@ -318,35 +377,45 @@ function spawn_service.on_tick(event)
                         clone_count = clone_count + 1
 
                         unit_groups = unit_groups or set_game() and unit_groups
-                        unit_groups.count = (unit_groups.count or 1) - 1
-                        if (unit_groups.count < 0) then unit_groups.count = 0 end
+                        unit_groups.surface_count[requesting_unit_group.surface_name] = (unit_groups.surface_count[requesting_unit_group.surface_name] or 0) - 1
+                        if (unit_groups.surface_count[requesting_unit_group.surface_name] < 0) then unit_groups.surface_count[requesting_unit_group.surface_name] = 0 end
 
                         settings_map = settings_map or set_game() and settings_map
                         settings_map.runtime_global = settings_map.runtime_global or {}
                         if (settings_map.runtime_global[show_attack_group_targets.name]) then  game_print({ "messages.entity-gps", "", requesting_unit_group.target_position.x, requesting_unit_group.target_position.y, requesting_unit_group.surface_name }) end
-                    end
 
-                    goto skip
+                        to = REMOVE
+                    end
                 end
 
                 ::continue::
-                if (to and gotos[to]) then to = 0 end
+                if (to and gotos[to] == CONTINUE) then to = 0 end
                 unit_groups.i = unit_groups.i + 1
 
                 ::remove::
-                if (to and gotos[to]) then
+                if (to and gotos[to] == REMOVE) then
+                    pathable_queue.first = pathable_queue.first or 1
+                    local remove_idx = pathable_queue.first
+                    pathable_queue.first = remove_idx + 1
+                    pathable_queue.q[remove_idx] = nil
+
                     groups[requesting_unit_group.unique_id] = nil
                     unit_groups.count = (unit_groups.count or 1) - 1
                     if (unit_groups.count < 0) then unit_groups.count = 0 end
+
+                    unit_groups.surface_count[requesting_unit_group.surface_name] = (unit_groups.surface_count[requesting_unit_group.surface_name] or 1) - 1
+                    if (unit_groups.surface_count[requesting_unit_group.surface_name] < 0) then unit_groups.surface_count[requesting_unit_group.surface_name] = 0 end
+
                     to = 0
                 end
 
                 ::skip::
-                if (to and gotos[to]) then to = 0 end
                 unit_groups.loops = unit_groups.loops + 1
                 to = 0
             end
         end
+    else
+        pathables[idx] = nil
     end
 
     if (((stats_data or set_game() and stats_data).current.total or 1) > 1024) then return end
@@ -525,13 +594,15 @@ local function find_overlapping_chunks(entity)
 
     local seen = {}
     local collides = {}
+    local collides_count = 0
 
     for x = min_chunk_x, max_chunk_x, 1 do
         for y = min_chunk_y, max_chunk_y, 1 do
             local xy = x .. FORWARD_SLASH .. y
             if (not seen[xy]) then
                 seen[xy] = 1
-                table_insert(collides, { x = x, y = y, xy = xy, })
+                collides_count = collides_count + 1
+                collides[collides_count] = { x = x, y = y, xy = xy, }
             end
         end
     end
