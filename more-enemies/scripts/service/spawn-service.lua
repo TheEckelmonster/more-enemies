@@ -651,48 +651,62 @@ function spawn_service.on_entity_died(event)
                     and spawner_map[chunk.xy]
                     and (not spawner_map[chunk.xy].spawner_count or spawner_map[chunk.xy].spawner_count < 1)
                 ) then
-                    remove_node({ surface_name = surface_name, source_chunk = spawner_map[chunk.xy], })
                     spawner_map[chunk.xy] = nil
                 end
-            end
-        else
-            local source = entity.commandable and entity.commandable.valid and not entity.commandable.spawner and GROUP or SPAWNED
-
-            num_clones = num_clones or set_game() and num_clones
-
-            num_clones[source] = num_clones[source] or {}
-            num_clones[source][surface_name] = num_clones[source][surface_name] or {}
-            num_clones[source][surface_name][entity.name] = num_clones[source][surface_name][entity.name] or 0
-
-            if (num_clones[source][surface_name][entity.name] > 0) then
-                num_clones[source][surface_name][entity.name] = num_clones[source][surface_name][entity.name] or 1
-                num_clones[source][surface_name][entity.name] = num_clones[source][surface_name][entity.name] - 1
-            else
-                num_clones[source][surface_name][entity.name] = 0
             end
         end
     else
         chunk_maps = chunk_maps or set_game() and chunk_maps
         local chunk_map = chunk_maps[surface_name]
-        local chunk = chunk_map[math_floor(entity.position.x / CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(entity.position.y / CHUNK_SIZE)]
+        local xy = math_floor(entity.position.x / CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(entity.position.y / CHUNK_SIZE)
+        local chunk = chunk_map[xy]
         if (not chunk) then return end
 
-        if (chunk.entity_count and chunk.entity_count >= 1) then
-            chunk.entity_count = chunk.entity_count - 1
-        else
-            local chunks = surfaces[surface_name].chunks or surfaces[surface_name].chunks or {}
-            chunk.xy = chunk.xy or (chunk.x .. FORWARD_SLASH .. chunk.y)
-            for i, v in ipairs(chunks) do
-                v.xy = v.xy or (v.x .. FORWARD_SLASH .. v.y)
-                if (v.xy == chunk.xy) then
-                    chunk_map[v.xy] = nil
-                    table_remove(chunks, i)
-                    break
+        chunk.entity_count = chunk.entity_count or 1
+        chunk.entity_count = chunk.entity_count - 1
+
+        if (chunk.entity_count < 1) then
+            surfaces = surfaces or set_game() and surfaces
+            surfaces[surface_name] = surfaces[surface_name] or {}
+            surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
+            local chunks = surfaces[surface_name].chunks
+
+            if (chunk.i) then
+                local count = #chunks
+                local temp = chunks[count]
+
+                chunks[chunk.i] = temp
+                chunks[count] = nil
+
+                if (temp) then temp.i = chunk.i end
+            else
+                local count = #chunks
+                for i = 1, count, 1 do chunks[i].i = i end
+
+                chunk = chunk_map[xy]
+                if (chunk and chunk.i) then
+                    local temp = chunks[count]
+
+                    chunks[chunk.i] = temp
+                    chunks[count] = nil
+
+                    if (temp) then temp.i = chunk.i end
                 end
             end
+
+            entity_maps = entity_maps or set_game() and entity_maps
+            local entity_map = entity_maps[surface_name]
+
+            entity_map[xy] = nil
+            chunk_map[xy] = nil
         end
     end
 end
+
+
+local unit_spawner_type_tbl = { UNIT_SPAWNER, }
+local enemy_force_tbl = { ENEMY, }
+local player_force_tbl = { ENEMY, NEUTRAL }
 
 local SPAWNED = SPAWNED
 function spawn_service.on_entity_spawned(event)
@@ -710,6 +724,83 @@ function spawn_service.on_entity_spawned(event)
     if (not Valid_Surfaces[surface.name]) then return end
 
     if (not event.spawner or not event.spawner.valid) then return end
+
+    chunk_maps = chunk_maps or set_game() and chunk_maps
+    chunk_maps[surface_name] = chunk_maps[surface_name] or {}
+
+    local position = event.spawner.position
+    local x = math_floor(position.x / CHUNK_SIZE)
+    local y = math_floor(position.y / CHUNK_SIZE)
+    local xy = x .. FORWARD_SLASH .. y
+
+    if (not chunk_maps[surface_name][xy]) then
+        local chunk = new_Leaf_Data(Leaf_Data, { x = x, y = y, }, event.tick)
+        chunk.xy = xy
+        local area = {
+            { x = chunk.x * Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE, },
+            { x = chunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, },
+        }
+
+        surface_funcs = surface_funcs or set_game() and surface_funcs
+        chunk.spawner_count = surface_funcs[surface_name].count_entities_filtered({
+            area = area,
+            type = unit_spawner_type_tbl,
+            force = enemy_force_tbl,
+        })
+
+        spawner_maps = spawner_maps or set_game() and spawner_maps
+        spawner_maps[surface_name] = spawner_maps[surface_name] or {}
+        local spawner_map = spawner_maps[surface_name]
+        if (chunk.spawner_count > 0) then spawner_map[chunk.xy] = chunk end
+
+        chunk.entity_count = surface_funcs[surface_name].count_entities_filtered({
+            area = area,
+            name = names,
+            type = attack_group_type_blacklist,
+            force = player_force_tbl,
+            invert = true,
+        })
+
+        chunks_arr = chunks_arr or set_game() and chunks_arr
+        local chunks = chunks_arr[surface_name] or {}
+
+        chunk_maps[surface_name][chunk.xy] = chunk
+        chunk = chunk_maps[surface_name][chunk.xy]
+        chunks[#chunks+1] = chunk
+
+        if (chunk.entity_count > 0) then
+            attack_groups = attack_groups or set_game() and attack_groups
+            local attack_group = attack_groups[surface_name]
+            if (attack_group) then
+                attack_group.next_chunks = attack_group.next_chunks or {}
+                attack_group.next_chunks[#attack_group.next_chunks+1] = chunk
+            end
+
+            entity_chunks = entity_chunks or set_game() and entity_chunks
+            entity_chunks[surface_name] = entity_chunks[surface_name] or {}
+            local entity_chunk_arr = entity_chunks[surface_name]
+
+            entity_chunk_arr[#entity_chunk_arr+1] = chunk_maps[surface_name][chunk.xy]
+
+            entity_maps = entity_maps or set_game() and entity_maps
+            entity_maps[surface_name] = entity_maps[surface_name] or {}
+            local entity_map = entity_maps[surface_name]
+
+            entity_map[chunk.xy] = chunk_maps[surface_name][chunk.xy]
+        end
+
+        if (    chunk.spawner_count > 0
+            or  chunk.entity_count > 0
+        ) then
+            local node = add_node({
+                tick = event.tick or 0,
+                source_chunk = chunk,
+                surface_name = surface_name,
+            })
+
+            chunk.parent_node = node
+        end
+    end
 
     num_clones = num_clones or set_game() and num_clones
     if (num_clones[SPAWNED][surface_name][entity.name] > (limits[SPAWNED] and limits[SPAWNED][surface_name] and limits[SPAWNED][surface_name][entity.name] or 400)) then return end
