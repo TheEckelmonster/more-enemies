@@ -229,13 +229,9 @@ function locals.migrate(params)
 
             local do_apply = nil
             for version, migration in pairs(Migrations) do
-                do_apply = prev_version_data.major.value <= version.major
-                if (do_apply) then
-                    do_apply = prev_version_data.minor.value <= version.minor
-                    if (do_apply) then
-                        do_apply = prev_version_data.bug_fix.value <= version.bug_fix
-                    end
-                end
+                do_apply = prev_version_data.major.value < version.major
+                do_apply = do_apply or prev_version_data.minor.value < version.minor
+                do_apply = do_apply or prev_version_data.bug_fix.value <= version.bug_fix
 
                 if (do_apply and type(migration) == "function") then
                     log(serpent.block("Applying version "

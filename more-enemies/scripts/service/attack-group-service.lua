@@ -104,7 +104,6 @@ local get_target_entity = Attack_Group_Utils.get_target_entity
 local Requesting_Unit_Group = require("scripts.data.requesting-unit-group")
 local new_Requesting_Unit_Group = Requesting_Unit_Group.new
 local Settings_Service = require("scripts.service.settings-service")
-local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
 local get_startup_setting = Settings_Service.get_startup_setting
 
 local delay_min = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
@@ -114,7 +113,7 @@ local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtim
 
 local attack_group_probability_modifiers = {}
 for _, surface_name in ipairs(Planets or {}) do
-    attack_group_probability_modifiers[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"].name, })
+    attack_group_probability_modifiers[surface_name] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"] or {}).name, }) or 0
 end
 
 local BOUNDING_BOXES = {
