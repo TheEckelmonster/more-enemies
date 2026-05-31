@@ -26,6 +26,7 @@ local Set_Num_Clones = Set_Num_Clones
 local Surfaces = Surfaces
 
 local Stats_Data = require("scripts.data.stats-data")
+local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
 
 local string_find = string.find
