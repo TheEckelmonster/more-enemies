@@ -6,6 +6,7 @@ To_Set_Game = To_Set_Game or {
         require("scripts.controller.entity-controller"),
         require("scripts.controller.planet-controller"),
         require("scripts.controller.spawn-controller"),
+        require("scripts.data.leaf-data"),
         require("scripts.service.attack-group-service"),
         require("scripts.service.planet-service"),
         require("scripts.service.spawn-service"),
@@ -24,7 +25,7 @@ function Set_game_all(event)
     Settings_Map = __storage.settings_map
 
     for _, v in ipairs(To_Set_Game.to_set or {}) do
-        if (type(v.init) == "function") then
+        if (type(v.set_game) == "function") then
             v.set_game(event, __game, __storage)
         end
     end
