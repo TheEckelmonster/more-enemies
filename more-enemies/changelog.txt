@@ -7,8 +7,8 @@ Date: 2026-05-31
     - Fixed potential error when starting a new game (thanks to Habinero for the report!)
       -> Unknown precise context to recreate
       -> Fixed by providing default fallback values to handle non-existent settings more gracefully
-    - Fixed attack groups being dispatched before they actually finishend rallying/swarming
-      -> i.e. previously, only the first handful or so would ever be selected, before being to told to move
+    - Fixed attack groups being dispatched before they actually finished rallying/swarming
+      -> i.e. previously, only the first handful or so would ever be selected, before being told to move
       -> Now, up to the allowed maximum limit (depending on difficulty) will actually form a cohesive unit-group
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.8
