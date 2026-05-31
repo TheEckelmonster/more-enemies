@@ -201,6 +201,7 @@ local to_init_storage = {
     Unit_Group_Controller,
     Settings_Service,
 
+    require("scripts.data.leaf-data"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),

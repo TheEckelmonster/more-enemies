@@ -1,4 +1,5 @@
 local storage
+local stats_data
 local attack_groups
 local chunks_arr
 local chunk_maps
@@ -16,10 +17,17 @@ local get_surface
 
 local ipairs = ipairs
 
+local Stats_Data = require("scripts.data.stats-data")
+local process_event = Stats_Data.process_event
+local new_Stats_Data = Stats_Data.new
+
 local Planets = Planets
 local Settings_Map = Settings_Map
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
+
+    storage.stats_data = new_Stats_Data(Stats_Data, storage.stats_data) or new_Stats_Data(Stats_Data, { tick = (__game or _ENV.game).tick, })
+    stats_data = storage.stats_data
 
     storage.attack_groups = storage.attack_groups or {}
     attack_groups = storage.attack_groups
@@ -81,7 +89,6 @@ local math_max = math.max
 local math_min = math.min
 local math_random = math.random
 local math_sqrt = math.sqrt
-local table_insert = table.insert
 
 local defines = defines
 local command_attack_area = defines.command.attack_area
@@ -104,8 +111,9 @@ local get_target_entity = Attack_Group_Utils.get_target_entity
 local Requesting_Unit_Group = require("scripts.data.requesting-unit-group")
 local new_Requesting_Unit_Group = Requesting_Unit_Group.new
 local Settings_Service = require("scripts.service.settings-service")
-local get_runtime_global_setting = Settings_Service.get_runtime_global_setting
 local get_startup_setting = Settings_Service.get_startup_setting
+local Simple_Queue = Simple_Queue or require("scripts.data.simple-queue")
+local new_Simple_Queue = Simple_Queue.new
 
 local delay_min = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
 local delay_max = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
@@ -114,7 +122,7 @@ local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtim
 
 local attack_group_probability_modifiers = {}
 for _, surface_name in ipairs(Planets or {}) do
-    attack_group_probability_modifiers[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"].name, })
+    attack_group_probability_modifiers[surface_name] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"] or {}).name, }) or 0
 end
 
 local BOUNDING_BOXES = {
@@ -367,16 +375,20 @@ function attack_group_service.do_random_attack_group(params)
 end
 
 function attack_group_service.on_script_path_request_finished(event)
+    stats_data = stats_data or set_game() and stats_data
+    stats_data.current.total = (stats_data.current.total or 0) + 1
 
     if (not event) then return end
+    process_event(stats_data, event.name, event.tick)
 
+    if (not event.id) then return end
     local id = event.id
-    if (not id) then return end
 
     unit_groups = unit_groups or set_game() and unit_groups
 
     local requesting_unit_group = unit_groups[id]
     if (not requesting_unit_group) then return end
+    local surface_name = requesting_unit_group.surface_name
     unit_groups[id] = nil
 
     if (event.try_again_later) then
@@ -393,7 +405,7 @@ function attack_group_service.on_script_path_request_finished(event)
 
         requesting_unit_group.path_request.max_gap_distance = requesting_unit_group.spider_unit and requesting_unit_group.path_request.max_gap_distance / 0.8 or 0
 
-        local surface = game and get_surface(requesting_unit_group.surface_name) or set_game().get_surface(requesting_unit_group.surface_name)
+        local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
         if (not surface or not surface.valid) then return end
 
         local path_id = surface.request_path(requesting_unit_group.path_request)
@@ -402,24 +414,24 @@ function attack_group_service.on_script_path_request_finished(event)
         unit_groups[path_id] = requesting_unit_group
         return
     else
-        chunk_maps[requesting_unit_group.surface_name] = chunk_maps[requesting_unit_group.surface_name] or set_game() and chunk_maps[requesting_unit_group.surface_name]
-        local chunk = chunk_maps[requesting_unit_group.surface_name][requesting_unit_group.xy or ""]
+        chunk_maps = chunk_maps or set_game() and chunk_maps
+        chunk_maps[surface_name] = chunk_maps[surface_name] or {}
+        local chunk = chunk_maps[surface_name][requesting_unit_group.xy or ""]
 
         if (not event.path) then
             if (chunk) then
-                chunk.no_path = (chunk.no_path or 1) + 1
-                chunk.timeout = event.tick + 60 * (4 ^ chunk.no_path)
+                chunk.no_path = (chunk.no_path or 0) + 1
+                chunk.timeout = event.tick + math_min(216000, 2 ^ (chunk.no_path))
             end
             return
         else
-            if (chunk) then chunk.no_path = (chunk.no_path or 1) ^ 0.4 end
+            if (chunk) then chunk.no_path = math_max(1, math_floor((chunk.no_path or 0) ^ 0.5)) end
         end
     end
 
-    unit_groups = unit_groups or set_game() and unit_groups
-    unit_groups.count = (unit_groups.count or 0)
-
-    if (unit_groups.count > max_unit_groups) then return end
+    unit_groups.surface_count = unit_groups.surface_count or {}
+    unit_groups.surface_count[surface_name] = (unit_groups.surface_count[surface_name] or 0)
+    if (unit_groups.surface_count[surface_name] >= max_unit_groups) then return end
 
     local surface = (game or set_game()).get_surface(requesting_unit_group.surface_name)
     if (not surface or not surface.valid) then return end
@@ -428,12 +440,15 @@ function attack_group_service.on_script_path_request_finished(event)
     if (not unit_group or not unit_group.valid) then return end
 
     unit_groups.count = unit_groups.count + 1
+    unit_groups.surface_count[surface_name] = unit_groups.surface_count[surface_name] + 1
 
     local unique_id = unit_group.unique_id
+    requesting_unit_group.unique_id = unique_id
+
     groups = groups or set_game() and groups
     groups[unique_id] = { tick = event.tick, group = unit_group, starting_pos = unit_group.position, }
 
-    requesting_unit_group.unique_id = unique_id
+    unique_ids = unique_ids or set_game() and unique_ids
     unique_ids[unique_id] = requesting_unit_group
 
     requesting_unit_group.attempts = nil
@@ -444,9 +459,10 @@ function attack_group_service.on_script_path_request_finished(event)
     requesting_unit_group.member_count = requesting_unit_group.member_count or 0
 
     local idx = unique_id % 60 + 1
-    pathables[idx] = pathables[idx] or {}
-    --[[ TODO: Convert this to a Simple_Queue ]]
-    table_insert(pathables[idx], requesting_unit_group)
+    pathables[idx] = pathables[idx] or new_Simple_Queue(Simple_Queue)
+    local next_idx = pathables[idx].last or 1
+    pathables[idx].q[next_idx] = requesting_unit_group
+    pathables[idx].last = next_idx + 1
 end
 Event_Handler:register_event({
     event_name = "on_script_path_request_finished",

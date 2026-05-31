@@ -75,6 +75,9 @@ function unit_group_service.on_unit_group_finished_gathering(event)
         if (not member or not member.valid or not member.is_entity) then goto continue end
         entity = member.entity
         if (not entity or not entity.valid or not entity.unit_number) then goto continue end
+        num_clones[GROUP] = num_clones[GROUP] or {}
+        num_clones[GROUP][surface_name] = num_clones[GROUP][surface_name] or {}
+        num_clones[GROUP][surface_name][entity.name] = num_clones[GROUP][surface_name][entity.name] or 0
         if (num_clones[GROUP][surface_name][entity.name] > (limits[GROUP] and limits[GROUP][surface_name] and limits[GROUP][surface_name][entity.name] or 400)) then return end
 
         unit_number = entity.unit_number
