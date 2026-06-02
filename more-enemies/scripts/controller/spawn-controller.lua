@@ -113,8 +113,14 @@ local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtim
 
 for _, surface_name in pairs(Planets) do
     local idx = surface_name:gsub("%-", "_"):upper()
-    do_attack_group[surface_name] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"] or {}).name, }) or true
-    attack_group_peace_time[surface_name] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"]).name, }) * Constants.time.TICKS_PER_MINUTE
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"]
+    if (setting and setting.name) then
+        do_attack_group[surface_name] = Data_Utils.get_runtime_global_setting({ setting = setting.name, }) or false
+    end
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"]
+    if (setting and setting.name) then
+        attack_group_peace_time[surface_name] = Data_Utils.get_runtime_global_setting({ setting = setting.name, }) * Constants.time.TICKS_PER_MINUTE
+    end
 end
 
 local MAX_AGE = 10 * Constants.time.TICKS_PER_MINUTE
@@ -370,8 +376,14 @@ update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name]
 
 for _, surface_name in ipairs(Planets or {}) do
     local idx = surface_name:gsub("%-", "_"):upper()
-    update_settings[Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"].name] = function (event, params) do_attack_group[surface_name] = params.setting_value end
-    update_settings[Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"].name] = function (event, params) attack_group_peace_time[surface_name] = params.setting_value end
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"]
+    if (setting and setting.name) then
+        update_settings[setting.name] = function (event, params) do_attack_group[surface_name] = params.setting_value end
+    end
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"]
+    if (setting and setting.name) then
+        update_settings[setting.name] = function (event, params) attack_group_peace_time[surface_name] = params.setting_value end
+    end
 end
 
 local ME_PREFIX = ME_PREFIX

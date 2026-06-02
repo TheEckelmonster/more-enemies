@@ -63,7 +63,15 @@ if (mods) then
             if (params and params.setting) then startup_settings_constants.settings[params.setting] = params end
         end, __Data_Utils.unpack(require("settings.startup.compatibility.Toxic_biters-constants")))
     end
+
+    __Data_Utils.foreach(function(params)
+        if (params and params.setting) then startup_settings_constants.settings[params.setting] = params end
+    end, __Data_Utils.unpack(require("settings.startup.compatibility.fallback-constants")))
+    __Data_Utils.foreach(function(params)
+        if (params and params.setting) then startup_settings_constants.settings[params.setting] = params end
+    end, __Data_Utils.unpack(require("settings.startup.planets.fallback-settings-constants")))
 end
+
 
 __Data_Utils.foreach(function(params)
     if (params and params.setting) then startup_settings_constants.settings[params.setting] = params end

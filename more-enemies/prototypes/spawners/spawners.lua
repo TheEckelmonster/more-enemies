@@ -124,8 +124,10 @@ end
 ---
 
 local next = next
+local pairs = pairs
 local Data_Utils = require("__TheEckelmonster-core-library__.libs.utils.data-utils")
 local Constants = require("scripts.constants.constants")
+local Startup_Settings_Constants = require("settings.startup.startup-settings-constants")
 
 ---
 
@@ -199,6 +201,30 @@ local function process_unit_spawner(params)
 
     data:extend({ spawner_prototype, })
 end
+
+local spawners = data.raw["unit-spawner"] or {}
+
+local spawner_names = {}
+for _, params in ipairs(spawner_settings_constants) do
+    if (type(params.spawner_name) == "string") then
+        spawner_names[params.spawner_name] = 1
+    end
+end
+
+local fallback_difficulty = require("settings.startup.planets.fallback-settings-constants")
+local fallback_settings = require("settings.startup.compatibility.fallback-constants")
+
+local fallbacks = {}
+for _, spawner in pairs(spawners) do
+    if (not spawner_names[spawner.name]) then
+        spawner_settings_constants[#spawner_settings_constants+1] = {
+            unit_settings = fallback_settings,
+            difficulty_settings = fallback_difficulty,
+            spawner_name = spawner.name,
+        }
+    end
+end
+spawner_settings_constants[#spawner_settings_constants+1] = fallbacks
 
 for _, params in ipairs(spawner_settings_constants or {}) do
     process_unit_spawner({

@@ -348,7 +348,7 @@ function events.on_configuration_changed(event)
         storage.difficulties = storage.difficulties or {}
 
         for _, surface_name in ipairs(Planets or {}) do
-            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
+            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
         end
     end
 

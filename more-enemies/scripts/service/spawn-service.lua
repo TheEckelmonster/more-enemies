@@ -743,6 +743,7 @@ function spawn_service.on_entity_spawned(event)
         }
 
         surface_funcs = surface_funcs or set_game() and surface_funcs
+        surface_funcs[surface_name] = surface_funcs[surface_name] or set_game() and surface_funcs[surface_name]
         chunk.spawner_count = surface_funcs[surface_name].count_entities_filtered({
             area = area,
             type = unit_spawner_type_tbl,
@@ -874,12 +875,12 @@ local ESCAPED_DASH = ESCAPED_DASH
 local UNDERSCORE = UNDERSCORE
 for _, planet in ipairs(Planets or { NAUVIS, }) do
     local idx = planet:gsub(ESCAPED_DASH, UNDERSCORE):upper()
-    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name] = function (event, params) Clone_Unit_Setting[params.surface_name or ""] = params.setting_value end
-    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name] = function (event, params) Clone_Unit_Group_Setting[params.surface_name or ""] = params.setting_value end
+    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name or 0] = function (event, params) Clone_Unit_Setting[params.surface_name or ""] = params.setting_value end
+    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name or 0] = function (event, params) Clone_Unit_Group_Setting[params.surface_name or ""] = params.setting_value end
     for unit, _ in pairs(Clonable_Units) do
         local idx = (planet:gsub(ESCAPED_DASH, UNDERSCORE):upper() .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
-            update_settings[Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"].name] = function (event, params)
+            update_settings[Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"].name or 0] = function (event, params)
                 limits = limits or set_game() and limits
                 for unit_name, _ in pairs(Clonable_Units) do
                     if (unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
@@ -889,7 +890,7 @@ for _, planet in ipairs(Planets or { NAUVIS, }) do
             end
         end
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"]) then
-            update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name] = function (event, params)
+            update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name or 0] = function (event, params)
                 limits = limits or set_game() and limits
                 for unit_name, _ in pairs(Clonable_Units) do
                     if (unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
@@ -900,6 +901,7 @@ for _, planet in ipairs(Planets or { NAUVIS, }) do
         end
     end
 end
+update_settings[0] = nil
 
 local STRING = Types.STRING
 function spawn_service.on_runtime_mod_setting_changed(event, params)
