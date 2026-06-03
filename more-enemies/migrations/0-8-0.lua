@@ -3,6 +3,8 @@ if (not storage) then return end
 
 storage.num_clones = nil
 
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local Simple_Queue = require("scripts.data.simple-queue")
 local new_Simple_Queue = Simple_Queue.new
@@ -17,6 +19,8 @@ end
 local pairs = pairs
 local table_insert = table.insert
 
+local Attack_Group_Data = require("scripts.data.attack-group-data")
+local new_Attack_Group_Data = Attack_Group_Data.new
 local Attack_Group_Constants = require("settings.startup.attack-group-constants")
 
 local Constants = require("scripts.constants.constants")
@@ -42,6 +46,25 @@ if (next(names, nil) == nil) then names = nil end
 local unit_spawner_type_tbl = { "unit-spawner", }
 local enemy_force_tbl = { "enemy", }
 local player_force_inverse_tbl = { "enemy", "neutral" }
+
+
+local function flatcopy(src)
+    if (not src) then return end
+
+    local copy = {}
+
+    for k, v in pairs(src or {}) do copy[k] = v end
+
+    return copy
+end
+
+local function flatcopy_array(src, dst)
+    if (not src) then return end
+    dst = dst or {}
+    for i = 1, #dst, 1 do dst[i] = nil end
+    for i = 1, #src, 1 do dst[i] = flatcopy(src[i]) end
+    return dst
+end
 
 local function migrate(params)
     params = params or {}
@@ -70,14 +93,20 @@ local function migrate(params)
 
             local iterator = storage.surfaces[name].iterator
             if (iterator and iterator.valid) then
-                storage.surfaces[name].chunks = storage.surfaces[name].chunks or {}
+                storage.surfaces[name].chunks = {}
                 local chunks = storage.surfaces[name].chunks
 
-                storage.surfaces[name].spawner_map = storage.surfaces[name].spawner_map or {}
+                storage.surfaces[name].entity_chunks = {}
+                local entity_chunks = storage.surfaces[name].entity_chunks
+
+                storage.surfaces[name].spawner_map = {}
                 local spawner_map = storage.surfaces[name].spawner_map
 
-                storage.surfaces[name].chunk_map = storage.surfaces[name].chunk_map or {}
+                storage.surfaces[name].chunk_map = {}
                 local chunk_map = storage.surfaces[name].chunk_map
+
+                storage.surfaces[name].entity_map = storage.surfaces[name].entity_map or {}
+                local entity_map = storage.surfaces[name].entity_map
 
                 local is_chunk_generated = surface.is_chunk_generated
                 local count_entities_filtered = surface.count_entities_filtered
@@ -98,10 +127,6 @@ local function migrate(params)
                             force = enemy_force_tbl,
                         })
 
-                        if (chunk.spawner_count > 0) then
-                            spawner_map[chunk.xy] = chunk
-                        end
-
                         chunk.entity_count = count_entities_filtered({
                             area = area,
                             name = names,
@@ -110,20 +135,33 @@ local function migrate(params)
                             invert = true,
                         })
 
-                        if (chunk.entity_count > 0) then
-                            chunk_map[chunk.xy] = chunk
-                            chunks[#chunks+1] = chunk
-                        end
+                        if (    chunk.spawner_count > 0
+                            or  chunk.entity_count > 0
+                        ) then
+                            chunk = new_Leaf_Data(Leaf_Data, chunk, tick)
 
-                        if (chunk.spawner_count > 0) then
-                            Quadtree_Service.add_node({
+                            local node = Quadtree_Service.add_node({
                                 tick = tick or 0,
                                 source_chunk = chunk,
                                 surface_name = name,
                             })
+
+                            chunk.parent_node = node
+
+                            chunk_map[chunk.xy] = chunk
+                            chunks[#chunks+1] = chunk_map[chunk.xy]
+
+                            if (chunk.spawner_count > 0) then spawner_map[chunk.xy] = chunk_map[chunk.xy] end
+                            if (chunk.entity_count > 0) then
+                                entity_map[chunk.xy] = chunk_map[chunk.xy]
+                                entity_chunks[#entity_chunks+1] = chunk_map[chunk.xy]
+                            end
                         end
                     end
                 end
+
+                storage.attack_groups = storage.attack_groups or {}
+                storage.attack_groups[name] = storage.attack_groups[name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = name, current_chunks = flatcopy_array(entity_chunks, {}) })
             end
         end
     end

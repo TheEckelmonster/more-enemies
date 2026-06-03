@@ -1,3 +1,5 @@
+require("prototypes.globals.me-data-api")
+
 require("prototypes.sprites.fallback")
 require("prototypes.custom-events.custom-events")
 require("prototypes.map-settings")

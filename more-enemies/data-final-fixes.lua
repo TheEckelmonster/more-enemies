@@ -1,6 +1,9 @@
 local mods = mods
 
+require("prototypes.globals.me-data-api")
+
 require("prototypes.mod-data.clonable-unit-data")
+require("prototypes.mod-data.target-priority-data")
 
 require("prototypes.attack-groups")
 require("prototypes.entities.unit")
