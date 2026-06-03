@@ -18,8 +18,12 @@ local function set_game(event, __game, __storage)
     return game
 end
 
-local Log = require("libs.log.log")
+local Log = Log
+
 local Planet_Service = require("scripts.service.planet-service")
+local on_surface_created = Planet_Service.on_surface_created
+local on_surface_deleted = Planet_Service.on_surface_deleted
+local on_surface_renamed = Planet_Service.on_surface_renamed
 
 local planet_controller = {}
 planet_controller.name = "planet_controller"
@@ -33,14 +37,47 @@ function planet_controller.on_surface_created(event)
     stats_data.current.total = (stats_data.current.total or 0) + 1
     if (not event) then return end
     process_event(stats_data, event.name, event.tick)
-    Planet_Service.on_surface_created(event)
+    on_surface_created(event)
 end
-
 Event_Handler:register_event({
     event_name = "on_surface_created",
     source_name = "planet_controller.on_surface_created",
     func_name = "planet_controller.on_surface_created",
     func = planet_controller.on_surface_created,
+})
+
+function planet_controller.on_surface_deleted(event)
+    -- Log.debug("planet_controller.on_surface_deleted")
+    -- Log.info(event)
+
+    stats_data = stats_data or set_game() and stats_data
+    stats_data.current.total = (stats_data.current.total or 0) + 1
+    if (not event) then return end
+    process_event(stats_data, event.name, event.tick)
+    on_surface_deleted(event)
+end
+Event_Handler:register_event({
+    event_name = "on_surface_deleted",
+    source_name = "planet_controller.on_surface_deleted",
+    func_name = "planet_controller.on_surface_deleted",
+    func = planet_controller.on_surface_deleted,
+})
+
+function planet_controller.on_surface_renamed(event)
+    -- Log.debug("planet_controller.on_surface_renamed")
+    -- Log.info(event)
+
+    stats_data = stats_data or set_game() and stats_data
+    stats_data.current.total = (stats_data.current.total or 0) + 1
+    if (not event) then return end
+    process_event(stats_data, event.name, event.tick)
+    on_surface_renamed(event)
+end
+Event_Handler:register_event({
+    event_name = "on_surface_renamed",
+    source_name = "planet_controller.on_surface_renamed",
+    func_name = "planet_controller.on_surface_renamed",
+    func = planet_controller.on_surface_renamed,
 })
 
 function planet_controller.init(__storage) storage = __storage or _ENV.storage end

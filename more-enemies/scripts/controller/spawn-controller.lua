@@ -1,6 +1,7 @@
 local storage
 local attack_groups
 local groups
+local num_clones
 local surface_creation
 local stats_data
 local unique_ids
@@ -8,10 +9,16 @@ local unit_groups
 
 local game
 local get_surface
+local surface_funcs
+
+local Set_Num_Clones = Set_Num_Clones
+local Surfaces = Surfaces
 
 local Stats_Data = require("scripts.data.stats-data")
 local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
+
+local string_find = string.find
 
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
@@ -38,10 +45,34 @@ local function set_game(event, __game, __storage)
 
     get_surface = game.get_surface
 
+    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    Surface_Funcs = _ENV.Surface_Funcs
+
+    _ENV.Surfaces = _ENV.Surfaces or {}
+    Surfaces = _ENV.Surfaces
+    Surfaces.list = Surfaces.list or {}
+    for name, surface in pairs(game.surfaces) do
+        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+            Surfaces[name] = surface
+            Surfaces.list[surface.index] = name
+
+            Surface_Funcs[name] = Surface_Funcs[name] or {}
+            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
+            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+        else
+            Surfaces[name], Surface_Funcs[name] = nil, nil
+        end
+    end
+    surface_funcs = Surface_Funcs
+
+    num_clones = Set_Num_Clones()
+
     return game
 end
 
-local math_ceil = math.ceil
 local math_min = math.min
 local math_sqrt = math.sqrt
 
@@ -74,12 +105,13 @@ local UINT64 = 2^64-1
 local Clonable_Units = Clonable_Units
 local Filters = Filters
 local Log = Log
+local Surfaces = Surfaces
 
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
-local Settings_Map = Settings_Map
 
 local Constants = Constants or require("scripts.constants.constants")
 local Planets = Planets
+local num_planets = table_size(Planets)
 local planets = {}
 
 local i = 0
@@ -152,9 +184,10 @@ function spawn_controller.on_tick(event)
     on_tick(event)
 
     if (not planets[event.tick % modulo]) then goto skip end
+    if (not Surfaces) then set_game() end
     for _, surface_name in ipairs(planets[event.tick % modulo]) do
         if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < event.tick)) then
-            if (not (game and get_surface(surface_name) or set_game().get_surface(surface_name) or {}).valid) then goto continue end
+            if (not Surfaces[surface_name] or not Surfaces[surface_name].valid) then goto continue end
 
             if (surface_creation and not surface_creation[surface_name]) then
                 if (get_surface(surface_name).index == 1) then
@@ -191,17 +224,22 @@ function spawn_controller.on_tick(event)
                 unique_ids[k] = nil
                 unit_groups.count = (unit_groups.count or 1) - 1
                 if (unit_groups.count < 0) then unit_groups.count = 0 end
-                stats_data.current.group_stress = (unit_groups.count + 1) / (max_unit_groups + 1)
+                stats_data.current.group_stress = (unit_groups.count + 0.5) / (max_unit_groups + 1)
             else
-                unit_groups.count = unit_groups.count or 1
-                stats_data.current.group_stress = (unit_groups.count + 1) / (max_unit_groups + 1)
-                stats_data.group_allowed_age = (max_age or MAX_AGE) * (1.0 - (0.75 * stats_data.current.group_stress))
+                unit_groups.count = unit_groups.count or 0
+                unit_groups.surface_count = unit_groups.surface_count or {}
+                unit_groups.surface_count[unit_group.surface_name] = unit_groups.surface_count[unit_group.surface_name] or 0
+                stats_data.surface_group_stress[unit_group.surface_name] = (unit_groups.surface_count[unit_group.surface_name] + 0) / (max_unit_groups + 1)
+
+                stats_data.current.group_stress = (unit_groups.count + 0) / (num_planets * max_unit_groups + 1)
+
+                stats_data.group_allowed_age = (max_age or MAX_AGE) * (1.0 - (0.75 * (math_max(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name]))))
                 if (group.moving_state == moving_state_stuck or unit_group.tick < (event.tick - stats_data.group_allowed_age)) then
-                    if ((valid_moving_state[group.moving_state] or valid_commands[group.state]) and stats_data.current.group_stress < 0.98) then
-                        unit_group.resets = (unit_group.resets or -1) + 1
-                        unit_group.tick = event.tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, 0.001)))
+                    if ((valid_moving_state[group.moving_state] or valid_commands[group.state]) and (stats_data.current.group_stress <= 0.98 or stats_data.surface_group_stress[unit_group.surface_name] <= 0.98)) then
+                        unit_group.resets = (unit_group.resets or 0) + (math_min(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.98))
+                        unit_group.tick = event.tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.001)))
                     else
-                        if (unit_group.group.valid) then unit_group.group.destroy() end
+                        if (group.valid) then group.destroy() end
                         groups[k] = nil
                         unique_ids[k] = nil
                         unit_groups.count = (unit_groups.count or 1) - 1
@@ -225,7 +263,7 @@ function spawn_controller.on_tick(event)
     if (event.tick % 60 == 0) then
         unit_groups = unit_groups or set_game() and unit_groups
         unit_groups.count = unit_groups.count or 0
-        local curr_stress = (unit_groups.count + 1) / (max_unit_groups + 1)
+        local curr_stress = (unit_groups.count + 0.5) / (num_planets * max_unit_groups + 1)
         local curr_activity = stats_data.current.total
 
         local hist_a = stats_data.activity_history
@@ -288,27 +326,13 @@ Event_Handler:register_event({
     func = spawn_controller.on_tick,
 })
 
-local types = {
-    ["unit"] = true,
-    ["spider-unit"] = true,
-    -- ["unit-spawner"] = true,
-}
 function spawn_controller.on_entity_died(event)
     -- Log.debug("spawn_controller.on_entity_died")
     -- Log.info(event)
     stats_data = stats_data or set_game() and stats_data
     stats_data.current.total = (stats_data.current.total or 0) + 1
     if (not event) then return end
-
-    if (not process_event(stats_data, event.name, event.tick)) then
-        if (event.entity and event.entity.valid) then
-            if (types[event.entity.type]) then
-                return
-            end
-        else
-            return
-        end
-    end
+    process_event(stats_data, event.name, event.tick)
 
     on_entity_died(event)
 end
@@ -331,7 +355,6 @@ function spawn_controller.on_entity_spawned(event)
     if (not event.entity or not event.entity.valid) then return end
     if (not Clonable_Units[event.entity.name]) then return end
     if (not event.entity.force or not event.entity.force.valid) then return end
-    -- if (event.entity.force.name ~= ENEMY) then return end
     if (not event.entity.surface or not event.entity.surface.valid or not Valid_Surfaces[event.entity.surface.name]) then return end
 
     on_entity_spawned(event)
@@ -355,9 +378,6 @@ function spawn_controller.script_raised_built(event)
     if (not event.entity or not event.entity.valid) then return end
     if (not Clonable_Units[event.entity.name]) then return end
     if (not event.entity.force or not event.entity.force.valid) then return end
-    -- if (event.entity.force ~= ENEMY) then return end
-
-    -- if (not Settings_Service.get_BREAM_do_clone()) then return end
 
     entity_built(event)
 end
@@ -399,7 +419,7 @@ function spawn_controller.on_runtime_mod_setting_changed(event, params)
     end
 end
 Settings_Registry:register_setting({
-    func_name = "spawn_service_settings",
+    func_name = "spawn_controller_settings",
     func = spawn_controller.on_runtime_mod_setting_changed
 })
 

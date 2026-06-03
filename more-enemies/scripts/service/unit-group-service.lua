@@ -4,6 +4,8 @@ local entities
 local limits
 local num_clones
 local groups
+local on_object_destroyed
+local unit_groups
 
 local Set_Num_Clones = Set_Num_Clones
 
@@ -19,6 +21,12 @@ local function set_game(event, __game, __storage)
     storage.limits = storage.limits or {}
     limits = storage.limits
 
+    storage.on_object_destroyed = storage.on_object_destroyed or {}
+    on_object_destroyed = storage.on_object_destroyed
+
+    storage.unit_groups = storage.unit_groups or {}
+    unit_groups = storage.unit_groups
+
     game = __game or _ENV.game
 
     num_clones = Set_Num_Clones()
@@ -26,8 +34,10 @@ local function set_game(event, __game, __storage)
     return game
 end
 
-local table_insert = table.insert
 local type = type
+
+local script = script
+local register_on_object_destroyed = script.register_on_object_destroyed
 
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 local Simple_Queue = require("scripts.data.simple-queue")
@@ -61,9 +71,20 @@ function unit_group_service.on_unit_group_finished_gathering(event)
     local member, unit_number, entity = nil, nil, nil
 
     groups = groups or set_game() and groups
-    groups[unique_id] = { tick = event.tick, group = group, starting_pos = group.position, }
+    -- groups[unique_id] = { tick = event.tick, group = group, starting_pos = group.position, }
+    local reg_tbl = { tick = event.tick, group = group, unique_id = unique_id, starting_pos = group.position, surface_name = surface_name, }
+    -- groups[unique_id] = { tick = event.tick, group = group, unique_id = unique_id, starting_pos = group.position, surface_name = surface_name, }
+    reg_tbl.registration_number, reg_tbl.useful_id, reg_tbl.target_type = register_on_object_destroyed(group)
+    groups[unique_id] = reg_tbl
+
+    on_object_destroyed = on_object_destroyed or set_game() and on_object_destroyed
+    on_object_destroyed[reg_tbl.registration_number] = reg_tbl
 
     num_clones = num_clones or set_game() and num_clones
+
+    unit_groups = unit_groups or set_game() and unit_groups
+    unit_groups.unit_nums = unit_groups.unit_nums or {}
+    local unit_nums = unit_groups.unit_nums
 
     local tick = event.tick
     local idx = ""
@@ -81,13 +102,13 @@ function unit_group_service.on_unit_group_finished_gathering(event)
         if (num_clones[GROUP][surface_name][entity.name] > (limits[GROUP] and limits[GROUP][surface_name] and (limits[GROUP][surface_name][entity.name] or limits[GROUP][surface_name].fallback) or 400)) then return end
 
         unit_number = entity.unit_number
+        unit_nums[unit_number] = tick
         idx = unit_number % 60 + 1
 
         entities = entities or set_game() and entities
         entities[idx] = entities[idx] or new_Simple_Queue(Simple_Queue)
         local entity_queue = entities[idx]
         local next_idx = entity_queue.last or 1
-        entity_queue.last = next_idx + 1
         entity_queue.q[next_idx] = {
             source = GROUP,
             unique_id = unique_id or nil,
@@ -97,6 +118,7 @@ function unit_group_service.on_unit_group_finished_gathering(event)
             member_count = member_count,
             type = entity.type or UNIT,
         }
+        entity_queue.last = next_idx + 1
 
         ::continue::
     end

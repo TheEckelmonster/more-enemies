@@ -610,11 +610,8 @@ local function find_overlapping_chunks(entity)
     return collides
 end
 
-local SPIDER_UNIT = SPIDER_UNIT
 local UNIT_SPAWNER = UNIT_SPAWNER
 local entity_types = {
-    [UNIT] = true,
-    [SPIDER_UNIT] = true,
     [UNIT_SPAWNER] = true,
 }
 function spawn_service.on_entity_died(event)

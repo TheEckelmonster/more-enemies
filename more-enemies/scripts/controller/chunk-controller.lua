@@ -3,6 +3,8 @@ local stats_data
 local attack_groups
 local chunks_arr
 local chunk_maps
+local entity_chunks
+local entity_maps
 local spawner_maps
 local surfaces
 
@@ -32,17 +34,27 @@ local function set_game(event, __game, __storage)
     storage.chunk_maps = storage.chunk_maps or {}
     chunk_maps = storage.chunk_maps
 
+    storage.entity_chunks = storage.entity_chunks or {}
+    entity_chunks = storage.entity_chunks
+
+    storage.entity_maps = storage.entity_maps or {}
+    entity_maps = storage.entity_maps
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
     for _, planet in ipairs(Planets or {}) do
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
         spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
     end
 
@@ -52,15 +64,15 @@ local function set_game(event, __game, __storage)
 end
 
 local ipairs = ipairs
-
 local table_insert = table.insert
-local table_remove = table.remove
 
 local Event_Handler = Event_Handler
 local Log = Log
 
 local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
 local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local add_node = Quadtree_Service.add_node
 local remove_node = Quadtree_Service.remove_node
@@ -109,12 +121,22 @@ function chunk_controller.on_chunk_generated(event)
     local chunks = chunks_arr[surface_name] or {}
 
     spawner_maps = spawner_maps or set_game() and spawner_maps
-    local spawner_map = spawner_maps[surface_name] or {}
+    spawner_maps[surface_name] = spawner_maps[surface_name] or {}
+    local spawner_map = spawner_maps[surface_name]
 
     chunk_maps = chunk_maps or set_game() and chunk_maps
-    local chunk_map = chunk_maps[surface_name] or {}
+    chunk_maps[surface_name] = chunk_maps[surface_name] or {}
+    local chunk_map = chunk_maps[surface_name]
 
-    local chunk = {}
+    entity_chunks = entity_chunks or set_game() and entity_chunks
+    entity_chunks[surface_name] = entity_chunks[surface_name] or {}
+    local entity_chunk_arr = entity_chunks[surface_name]
+
+    entity_maps = entity_maps or set_game() and entity_maps
+    entity_maps[surface_name] = entity_maps[surface_name] or {}
+    local entity_map = entity_maps[surface_name]
+
+    local chunk = new_Leaf_Data(Leaf_Data, {}, event.tick)
     chunk.x = chunk_position.x
     chunk.y = chunk_position.y
     chunk.xy = chunk.x .. FORWARD_SLASH .. chunk.y
@@ -140,24 +162,32 @@ function chunk_controller.on_chunk_generated(event)
         invert = true,
     })
 
-    if (chunk.entity_count > 0) then
-        chunk_map[chunk.xy] = chunk
-        chunks[#chunks+1] = chunk
+    chunk_map[chunk.xy] = chunk
+    chunks[#chunks+1] = chunk
 
-        attack_groups = attack_groups or set_game() and attack_groups
-        local attack_group = attack_groups[surface_name]
+    attack_groups = attack_groups or set_game() and attack_groups
+    local attack_group = attack_groups[surface_name]
+
+    if (chunk.entity_count > 0) then
+        entity_chunk_arr[#entity_chunk_arr+1] = chunk_map[chunk.xy]
+        entity_map[chunk.xy] = chunk_map[chunk.xy]
+
         if (attack_group) then
             attack_group.next_chunks = attack_group.next_chunks or {}
-            attack_group.next_chunks[#attack_group.next_chunks+1] = chunk
+            attack_group.next_chunks[#attack_group.next_chunks+1] = chunk_map[chunk.xy]
         end
     end
 
-    if (chunk.spawner_count > 0) then
-        add_node({
+    if (    chunk.spawner_count > 0
+        or  chunk.entity_count > 0
+    ) then
+        local node = add_node({
             tick = event.tick or 0,
             source_chunk = chunk,
             surface_name = surface_name,
         })
+
+        chunk.parent_node = node
     end
 end
 Event_Handler:register_event({
@@ -181,10 +211,20 @@ function chunk_controller.on_chunk_deleted(event)
     local surface_name = surface.name
 
     chunks_arr = chunks_arr or set_game() and chunks_arr
+    chunks_arr[surface_name] = chunks_arr[surface_name] or {}
     local chunks = chunks_arr[surface_name]
 
     spawner_maps = spawner_maps or set_game() and spawner_maps
+    spawner_maps[surface_name] = spawner_maps[surface_name] or {}
     local spawner_map = spawner_maps[surface_name]
+
+    entity_chunks = entity_chunks or set_game() and entity_chunks
+    entity_chunks[surface_name] = entity_chunks[surface_name] or {}
+    local entity_chunk_arr = entity_chunks[surface_name]
+
+    entity_maps = entity_maps or set_game() and entity_maps
+    entity_maps[surface_name] = entity_maps[surface_name] or {}
+    local entity_map = entity_maps[surface_name]
 
     chunk_maps = chunk_maps or set_game() and chunk_maps
     local chunk_map = chunk_maps[surface_name]
@@ -203,7 +243,6 @@ function chunk_controller.on_chunk_deleted(event)
             chunk.xy = chunk.xy or (chunk.x .. FORWARD_SLASH .. chunk.y)
             if (chunk.xy == xy) then
                 chunk_map[chunk.xy] = nil
-                -- local temp = chunks[j]
                 chunks[j] = chunks[#chunks]
                 chunks[#chunks] = nil
                 break

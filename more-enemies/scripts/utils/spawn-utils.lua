@@ -4,6 +4,11 @@ local evolution_factors
 local vanilla
 
 local game
+local surface_funcs
+
+local Surfaces = Surfaces
+
+local string_find = string.find
 
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
@@ -19,16 +24,43 @@ local function set_game(event, __game, __storage)
 
     game = __game or _ENV.game
 
+    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    Surface_Funcs = _ENV.Surface_Funcs
+
+    _ENV.Surfaces = _ENV.Surfaces or {}
+    Surfaces = _ENV.Surfaces
+    Surfaces.list = Surfaces.list or {}
+    for name, surface in pairs(game.surfaces) do
+        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+            Surfaces[name] = surface
+            Surfaces.list[surface.index] = name
+
+            Surface_Funcs[name] = Surface_Funcs[name] or {}
+            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+        else
+            Surfaces[name], Surface_Funcs[name] = nil, nil
+        end
+    end
+    surface_funcs = Surface_Funcs
+
     return game
 end
 
 local script = script
 local active_mods = script and script.active_mods or nil
 
+local helpers = helpers
+local evaluate_expression = helpers.evaluate_expression
+
 local math_floor = math.floor
 local math_cos = math.cos
 local math_sin = math.sin
 local math_random = math.random
+local pcall = pcall
+local tonumber = tonumber
 
 local PI = math.pi
 local TWO_PI  = 2 * PI
@@ -50,6 +82,19 @@ for _, surface_name in ipairs(Planets or {}) do
     local setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"]
     if (setting and setting.name) then
         use_evolution_factor[surface_name] = Data_Utils.get_runtime_global_setting({ setting = setting.name, }) or false
+    end
+end
+
+local FORMULA_TEMPLATE  = Data_Utils.get_startup_setting({ seting = Startup_Settings_Constants.settings.DIFFICULTY_FORMULA.name, })
+local FORMULA_VARIABLES = Data_Utils.get_startup_setting({ seting = Startup_Settings_Constants.settings.DIFFICULTY_FORMULA_VARIABLES.name, })
+
+local COMPILED_VARIALBES = {}
+if (FORMULA_VARIABLES and FORMULA_VARIABLES ~= "") then
+    for assignment in string.gmatch(FORMULA_VARIABLES, "([^,]+)") do
+        local var_name, expression_source = string.match(assignment, "([^=]+)=([^=]+)")
+        if (var_name and expression_source) then
+            COMPILED_VARIALBES[#COMPILED_VARIALBES+1] = { name = var_name:gsub("%s", ""), raw_expr = expression_source:gsub("%s", ""), }
+        end
     end
 end
 
@@ -88,8 +133,15 @@ function spawn_utils.clone_entity(entity, params)
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty) then return end
 
-    local surface = entity.surface
-    if (not surface or not surface.valid) then return end
+    -- local surface = entity.surface
+    local surface = (Surfaces or set_game() and Surfaces) and Surfaces[surface_name]
+    if (not surface or not surface.valid) then
+        surface = entity.surface
+        if (not surface or not surface.valid) then return end
+        Surfaces.list = Surfaces.list or {}
+        Surfaces[surface_name] = entity.surface
+        Surfaces.list[entity.index] = surface_name
+    end
     vanilla = vanilla or set_game() and vanilla
     vanilla[surface_name] = vanilla[surface_name] or { is_vanilla = is_vanilla(surface_name), surface_name = surface_name, tick = params.tick + 90, }
     if (vanilla[surface_name].tick < params.tick) then
@@ -172,28 +224,70 @@ function spawn_utils.clone_entity(entity, params)
     return clones
 end
 
-function spawn_utils.calc_evolution_multiplier(selected_difficulty, evolution_factor)
-    --   Log.debug("locals.calc_evolution_multiplier")
-    --   Log.info(selected_difficulty)
-    --   Log.info(evolution_factor)
+-- function spawn_utils.calc_evolution_multiplier(selected_difficulty, evolution_factor)
 
-    -- Validate inputs
-    evolution_factor = evolution_factor or 0
-    -- if (not selected_difficulty or not selected_difficulty.valid) then return evolution_factor end
-    if (not selected_difficulty) then return evolution_factor end
+--     -- Validate inputs
+--     evolution_factor = evolution_factor or 0
+--     if (not selected_difficulty) then return evolution_factor end
 
-    -- Calculate the evolution factor
-    -- [Old]
-    -- https://www.wolframalpha.com/input?i=x%5E%28y%2F%28x%5E%28y%2Fx%29%29%29+*+%28y%5Ex%29
+--     -- Calculate the evolution factor
+--     -- [Old]
+--     -- https://www.wolframalpha.com/input?i=x%5E%28y%2F%28x%5E%28y%2Fx%29%29%29+*+%28y%5Ex%29
 
-    -- [Current]
-    -- https://www.wolframalpha.com/input?i=x%5E%28y%2F%28x%5E%28y%2Fx%29%29%29+*+y%2C+y%3D0+to+1
-    --  -> Replace 'x' in the equation with the selected difficulty to graph the corresponding curve
-    local value = ((selected_difficulty.value ^ (evolution_factor / (selected_difficulty.value ^ (evolution_factor / selected_difficulty.value)))) * evolution_factor)
-    --   Log.debug("evolution multiplier: " .. value)
-    return value
+--     -- [Current]
+--     -- https://www.wolframalpha.com/input?i=x%5E%28y%2F%28x%5E%28y%2Fx%29%29%29+*+y%2C+y%3D0+to+1
+--     --  -> Replace 'x' in the equation with the selected difficulty to graph the corresponding curve
+--     local value = ((selected_difficulty.value ^ (evolution_factor / (selected_difficulty.value ^ (evolution_factor / selected_difficulty.value)))) * evolution_factor)
+
+--     return value
+-- end
+
+local keywords = {
+    ["default"] = 1,
+    ["surface"] = 1,
+}
+function spawn_utils.calc_evolution_multiplier(selected_difficulty, evolution_factor, surface, force)
+
+    local resolved_variables = {}
+
+    for _, var in ipairs(COMPILED_VARIALBES) do
+        local final_value = 0
+        local source = var.raw_expr
+
+        if (keywords[source]) then
+            if (source == "default") then
+                if (var.name == "difficulty") then
+                    final_value = selected_difficulty.value
+                elseif (var.name == "evolution_factor") then
+                    final_value = evolution_factor or 1
+                end
+            elseif (source == "surface") then
+                if (var.name == "evolution_factor") then
+                    final_value = force.get_evolution_factor(surface)
+                else
+                    final_value = evolution_factor or 1
+                end
+            end
+        elseif (settings.startup[source]) then
+            final_value = tonumber(get_startup_setting({  setting = source })) or 0
+        else
+            local contextual_primitives = {
+                difficulty_value = selected_difficulty.value,
+                evolution_factor = evolution_factor or 0
+            }
+            local ok, parsed_value = pcall(evaluate_expression, source, contextual_primitives)
+
+            final_value = ok and parsed_value or (tonumber(source) or 0)
+        end
+
+        resolved_variables[var.name] = final_value
+    end
+
+    local success, final_multiplier = pcall(evaluate_expression, FORMULA_TEMPLATE, resolved_variables)
+    if (not success or not final_multiplier) then return selected_difficulty.value * (evolution_factor or 1) end
+
+    return final_multiplier
 end
-
 
 local update_settings = {}
 

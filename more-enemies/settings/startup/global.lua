@@ -53,6 +53,40 @@ settings[#settings+1] = {
     minimum_value = 0,
 }
 settings[#settings+1] = {
+    setting = "CONDUCTOR_STYLE",
+    type = "string-setting",
+    name = prefix .. "conductor-style",
+    setting_type = "startup",
+    order = "xomni",
+    default_value = "None",
+    allowed_values = {
+        "None",
+        "Random",
+        "Adaptive",
+        "Omni-mind",
+    },
+}
+settings[#settings+1] = {
+    setting = "DIFFICULTY_FORMULA",
+    type = "string-setting",
+    name = prefix .. "difficulty-formula",
+    setting_type = "startup",
+    order = "xdy",
+    default_value = "(difficulty^(evolution_factor/(difficulty^(evolution_factor/difficulty))))*evolution_factor",
+    allow_blank = false,
+    auto_trim = true,
+}
+settings[#settings+1] = {
+    setting = "DIFFICULTY_FORMULA_VARIABLES",
+    type = "string-setting",
+    name = prefix .. "difficulty-formula-variables",
+    setting_type = "startup",
+    order = "xdz",
+    default_value = "difficulty_value=surface,evolution_factor=surface",
+    allow_blank = true,
+    auto_trim = true,
+}
+settings[#settings+1] = {
     setting = "ATTACK_GROUP_BLACKLIST_NAMES",
     type = "string-setting",
     name = prefix .. "attack-group-blacklist-names",

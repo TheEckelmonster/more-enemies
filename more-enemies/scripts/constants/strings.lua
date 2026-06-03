@@ -15,6 +15,7 @@ FALSE = "false"
 TRUE = "true"
 
 NAUVIS = "nauvis"
+GLEBA = "gleba"
 
 PLAYER = "player"
 ENEMY = "enemy"

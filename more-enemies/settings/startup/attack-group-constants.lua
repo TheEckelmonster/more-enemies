@@ -1,4 +1,15 @@
+local defines = defines
+local defines_prototypes = defines.prototypes
+local pairs = pairs
+
 local attack_group_constants = {}
+attack_group_constants.types_list = {}
+attack_group_constants.types_table = {}
+
+for sub_type, _ in pairs(defines_prototypes or {}) do
+    attack_group_constants.types_list[#attack_group_constants.types_list+1] = sub_type
+    attack_group_constants.types_table[sub_type] = 1
+end
 
 -- attack_group_constants.type_blacklist = {
 --     "arrow",
@@ -177,6 +188,15 @@ attack_group_constants.type_blacklist_table = {}
 
 for _, v in pairs(attack_group_constants.type_blacklist) do
     attack_group_constants.type_blacklist_table[v] = 1
+end
+
+attack_group_constants.type_whitelist = {}
+attack_group_constants.type_whitelist_table = {}
+for sub_type, _ in pairs(defines_prototypes or {}) do
+    if (not attack_group_constants.type_blacklist_table[sub_type]) then
+        attack_group_constants.type_whitelist[#attack_group_constants.type_whitelist+1] = sub_type
+        attack_group_constants.type_whitelist_table[sub_type] = 1
+    end
 end
 
 return attack_group_constants

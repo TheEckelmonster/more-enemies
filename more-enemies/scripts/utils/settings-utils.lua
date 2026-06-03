@@ -32,8 +32,6 @@ local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants or r
 local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
-local Settings_Map = Settings_Map
-
 local Settings_Service = require("scripts.service.settings-service")
 local Vanilla_Difficulty_Data = require("scripts.data.difficulties.vanilla-difficulty-data")
 

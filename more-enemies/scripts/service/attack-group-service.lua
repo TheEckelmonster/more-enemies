@@ -4,7 +4,10 @@ local attack_groups
 local chunks_arr
 local chunk_maps
 local difficulties
+local entity_chunks
+local entity_maps
 local groups
+local on_object_destroyed
 local pathables
 local settings_map
 local spawner_maps
@@ -12,17 +15,30 @@ local surfaces
 local unit_groups
 local unique_ids
 
+local forces
+local force_funcs
+
 local game
 local get_surface
-
-local ipairs = ipairs
+local planetary_surfaces
+local surface_funcs
 
 local Stats_Data = require("scripts.data.stats-data")
 local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
 
 local Planets = Planets
-local Settings_Map = Settings_Map
+local Surfaces = Surfaces
+
+local ipairs = ipairs
+local pairs = pairs
+
+local string_find = string.find
+
+local Stats_Data = require("scripts.data.stats-data")
+local process_event = Stats_Data.process_event
+local new_Stats_Data = Stats_Data.new
+
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
 
@@ -37,6 +53,9 @@ local function set_game(event, __game, __storage)
 
     storage.groups = storage.groups or {}
     groups = storage.groups
+
+    storage.on_object_destroyed = storage.on_object_destroyed or {}
+    on_object_destroyed = storage.on_object_destroyed
 
     storage.pathables = storage.pathables or {}
     pathables = storage.pathables
@@ -56,17 +75,27 @@ local function set_game(event, __game, __storage)
     storage.chunk_maps = storage.chunk_maps or {}
     chunk_maps = storage.chunk_maps
 
+    storage.entity_chunks = storage.entity_chunks or {}
+    entity_chunks = storage.entity_chunks
+
+    storage.entity_maps = storage.entity_maps or {}
+    entity_maps = storage.entity_maps
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
     for _, planet in ipairs(Planets or {}) do
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
         spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
     end
 
@@ -78,6 +107,44 @@ local function set_game(event, __game, __storage)
 
     game = __game or _ENV.game
     get_surface = game.get_surface
+
+    Forces = Forces or {}
+    Force_Funcs = Force_Funcs or {}
+    for name, force in pairs(game.forces) do
+        if (force.valid) then
+            Forces[name] = force
+            Force_Funcs[name] = Force_Funcs[name] or {}
+            Force_Funcs[name].get_evolution_factor = force.get_evolution_factor
+        else
+            Forces[name] = nil
+        end
+    end
+    forces = Forces
+    force_funcs = Force_Funcs
+
+    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    Surface_Funcs = _ENV.Surface_Funcs
+
+    _ENV.Surfaces = _ENV.Surfaces or {}
+    Surfaces = _ENV.Surfaces
+    Surfaces.list = Surfaces.list or {}
+    for name, surface in pairs(game.surfaces) do
+        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+            Surfaces[name] = surface
+            Surfaces.list[surface.index] = name
+
+            Surface_Funcs[name] = Surface_Funcs[name] or {}
+            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
+            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+        else
+            Surfaces[name], Surface_Funcs[name] = nil, nil
+        end
+    end
+    planetary_surfaces = Surfaces
+    surface_funcs = Surface_Funcs
 
     return game
 end
@@ -94,6 +161,9 @@ local defines = defines
 local command_attack_area = defines.command.attack_area
 local command_build_base = defines.command.build_base
 
+local script = script
+local register_on_object_destroyed = script.register_on_object_destroyed
+
 local Data_Utils = Data_Utils
 local Constants = Constants
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
@@ -102,6 +172,9 @@ local Utils = require("__core__.lualib.util")
 local deepcopy = Utils.table.deepcopy
 
 local Log = Log
+
+local Simple_Queue = Simple_Queue or require("scripts.data.simple-queue")
+local new_Simple_Queue = Simple_Queue.new
 
 local Attack_Group_Data = require("scripts.data.attack-group-data")
 local new_Attack_Group_Data = Attack_Group_Data.new
@@ -118,7 +191,7 @@ local new_Simple_Queue = Simple_Queue.new
 local delay_min = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MINIMUM_ATTACK_GROUP_DELAY.default_value
 local delay_max = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.name, }) or Runtime_Global_Settings_Constants.settings.MAXIMUM_ATTACK_GROUP_DELAY.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
-local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name, })
+local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name, }) or 30
 
 local attack_group_probability_modifiers = {}
 for _, surface_name in ipairs(Planets or {}) do
@@ -151,6 +224,10 @@ local COLLISION_MASKS = {
 }
 
 local CHUNK = 32
+local MINUTES_2 = 60*60*2
+
+local SIGN_OF_THE_BEAST = 666
+local BASE_DELAY = 60*SIGN_OF_THE_BEAST
 
 local PATHFINDER_FLAGS = { allow_destroy_friendly_entities = true, allow_paths_through_own_entities = true, cache = true, }
 
@@ -179,16 +256,24 @@ end
 function attack_group_service.do_random_attack_group(params)
     -- Log.debug("attack_group_service.do_random_attack_group")
     -- Log.info(params)
-
+    -- log(serpent.block(params))
     if (not params) then return end
 
     local surface_name = params.surface_name
     if (not surface_name) then return end
 
-    local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+    -- local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+    if (not Surfaces) then set_game() end
+    local surface = Surfaces[surface_name] or set_game().get_surface(surface_name)
+    -- log(serpent.block(surface))
     if (not surface or not surface.valid) then return end
 
-    attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, })
+    surface_funcs = surface_funcs or set_game() and surface_funcs
+    surface_funcs[surface_name] = surface_funcs[surface_name] or {}
+    surface_funcs[surface_name].request_path = surface_funcs[surface_name].request_path or surface.request_path
+
+    attack_groups = attack_groups or set_game()
+    attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, current_chunks = flatcopy_array(surfaces[surface_name].entity_chunks, {}), })
     attack_groups[surface_name].tick = attack_groups[surface_name].tick or params.tick
     if (    attack_groups[surface_name].tick
         and attack_groups[surface_name].tick > (params.tick or 0)
@@ -201,19 +286,22 @@ function attack_group_service.do_random_attack_group(params)
     surfaces = surfaces or set_game() and surfaces
     if (not surfaces[surface_name]) then return end
 
-    attack_groups = attack_groups or set_game()
-
+    if (not attack_groups[surface_name]) then return end
     local attack_group = attack_groups[surface_name]
-    if (not attack_group) then return end
+
+    local skip = false
 
     attack_group.prev_delay = attack_group.cur_delay or 30
     attack_group.cur_delay = 30
     unit_groups = unit_groups or set_game() and unit_groups
-    if (not unit_groups.count or unit_groups.count >= max_unit_groups) then
+    unit_groups.surface_count = unit_groups.surface_count or {}
+    unit_groups.surface_count[surface_name] = unit_groups.surface_count[surface_name] or 0
+    if (unit_groups.surface_count[surface_name] > max_unit_groups) then
         local curr_fail_count = (attack_group.fail_count or 0) + 1
         attack_group.fail_count = curr_fail_count
 
         attack_group.sleep_until = params.tick + math_min(2 * curr_fail_count, 180)
+        skip = true
         goto skip
     end
 
@@ -222,7 +310,7 @@ function attack_group_service.do_random_attack_group(params)
         attack_group.next_chunks = attack_group.next_chunks or {}
 
         if (#attack_group.current_chunks == 0 and #attack_group.next_chunks == 0) then
-            attack_group.current_chunks = flatcopy_array(surfaces[surface_name].chunks, attack_group.current_chunks)
+            attack_group.current_chunks = flatcopy_array(surfaces[surface_name].entity_chunks, attack_group.current_chunks)
         end
 
         local chunks = attack_group.current_chunks
@@ -233,7 +321,15 @@ function attack_group_service.do_random_attack_group(params)
 
             chunks = attack_group.current_chunks
 
-            if (not chunks or #chunks < 1) then return end
+            if (not chunks or #chunks < 1) then
+                attack_group.current_chunks = flatcopy_array(surfaces[surface_name].entity_chunks, attack_group.current_chunks)
+                chunks = attack_group.current_chunks
+
+                if (not chunks or #chunks < 1) then
+                    skip = true
+                    goto skip
+                end
+            end
         end
 
         local count = #chunks
@@ -243,10 +339,12 @@ function attack_group_service.do_random_attack_group(params)
         chunks[rand] = chunks[count]
         chunks[count] = nil
 
-        chunk_maps = chunk_maps or set_game() and chunk_maps
-        local chunk_map = chunk_maps[surface_name]
+        entity_maps = entity_maps or set_game() and entity_maps
+        local entity_map = entity_maps[surface_name]
 
-        if (not chunk_map or not chunk_map[chunk.xy or 0]) then return end
+        if (not entity_map or not entity_map[chunk.xy or 0]) then
+            if (entity_map) then entity_map[chunk.xy or 0] = entity_map[chunk.xy] end
+        end
         attack_group.next_chunks[#attack_group.next_chunks+1] = chunk
 
         if (    not chunk
@@ -254,23 +352,35 @@ function attack_group_service.do_random_attack_group(params)
                 chunk.timeout
             and chunk.timeout > params.tick
         ) then
-            attack_group.invalid_chunks = (attack_group.invalid_chunks or 1) + 1
-            attack_group.tick = (params.tick or 0) + 10 * (attack_group.invalid_chunks ^ 1.75)
-            return
+            attack_group.invalid_chunks = (attack_group.invalid_chunks or 0) + 1
+            -- attack_group.tick = (params.tick or 0) + 10 * (attack_group.invalid_chunks ^ 1.75)
+            attack_group.tick = (params.tick or 0) + math_min(MINUTES_2, 10 * (attack_group.invalid_chunks ^ 1.75))
+            skip = true
+            goto skip
         else
             attack_group.invalid_chunks = (attack_group.invalid_chunks or 1) ^ 0.6
         end
 
-        local enemies = get_enemy({ surface_name = surface_name, chunk = chunk, tick = params.tick or 0, }) or {}
-        local num_enemies = #enemies
-        if (not enemies[1] or not enemies[1].valid) then return end
-
         difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
 
         local selected_difficulty = difficulties[surface_name]
-        if (not selected_difficulty) then return end
+        if (not selected_difficulty) then
+            skip = true
+            goto skip
+        end
 
-        local evolution_factor = enemies[1].force.get_evolution_factor(enemies[1].surface)
+        local limit = math_min(max_unit_group_size, 12 + selected_difficulty.value + selected_difficulty.value * selected_difficulty.radius_modifier * (1 + selected_difficulty.radius_modifier * math_random(1 + selected_difficulty.value)))
+
+        local enemies = get_enemy({ surface_name = surface_name, xy = chunk.xy, tick = params.tick or 0, limit = limit }) or {}
+        local num_enemies = #enemies
+        -- log(serpent.block(num_enemies))
+        if (not enemies[1] or not enemies[1].valid) then
+            skip = true
+            goto skip
+        end
+
+        -- local evolution_factor = enemies[1].force.get_evolution_factor(enemies[1].surface)
+        local evolution_factor = enemies[1].force.get_evolution_factor(surface)
         evolution_factor = evolution_factor ^ (1 / selected_difficulty.value)
 
         -- Maximum probability of an attack group spawning at 100% (1) evolution factor
@@ -298,20 +408,22 @@ function attack_group_service.do_random_attack_group(params)
 
         if (not proceed) then return end
 
-        local limit = math_min(max_unit_group_size, 1 + selected_difficulty.value + selected_difficulty.value * selected_difficulty.radius_modifier * (1 + selected_difficulty.radius_modifier * math_random(1 + selected_difficulty.value)))
-
         local target_entities = get_target_entity({
             chunk = chunk,
-            surface = surface,
+            surface_name = surface_name,
             limit = 1 + selected_difficulty.value,
         }) or {}
 
         local target_entity = nil
         if (#target_entities > 0) then
             target_entity = target_entities[math_random(#target_entities)]
-            if (not target_entity or not target_entity.valid) then return end
+            if (not target_entity or not target_entity.valid) then
+                skip = true
+                goto skip
+            end
         else
-            return
+            skip = true
+            goto skip
         end
 
         local target_position = target_entity.position
@@ -322,22 +434,22 @@ function attack_group_service.do_random_attack_group(params)
             goal = target_position,
             force = enemies[1].force,
             radius = 12,
-            pathfinder_flags = PATHFINDER_FLAGS,
+            pathfind_flags = PATHFINDER_FLAGS,
             can_open_gates = false,
             path_resolution_modifier = -1,
             max_gap_distance = enemies[1].type == SPIDER_UNIT and 4 or 0,
         }
 
-        local path_id = enemies[1].surface.request_path(path_request)
+        local path_id = surface_funcs[surface_name].request_path(path_request)
 
         unit_groups = unit_groups or set_game() and unit_groups
         unit_groups[path_id] = new_Requesting_Unit_Group(Requesting_Unit_Group, {
             enemies = {},
-            surface_name = enemies[1].surface.name,
+            surface_name = surface_name,
             start_position = enemies[1].position,
             target_position = target_position,
             xy = math_floor(enemies[1].position.x / CHUNK) .. FORWARD_SLASH .. math_floor(enemies[1].position.y / CHUNK),
-            limit = limit,
+            limit = math_floor(limit),
             path_id = path_id,
             path_request = path_request,
             --[[ TODO: make configurable ]]
@@ -349,12 +461,15 @@ function attack_group_service.do_random_attack_group(params)
         })
 
         local unit_group_enemies = unit_groups[path_id].enemies
+        local enemies_added = 0
         for i = 1, num_enemies, 1 do
             if (i >= limit or i >= max_unit_group_size) then break end
             if (enemies[i] and enemies[i].valid) then
-                unit_group_enemies[i] = enemies[i].unit_number
+                enemies_added = enemies_added + 1
+                unit_group_enemies[enemies_added] = enemies[i].unit_number
             end
         end
+        unit_groups[path_id].num_enemies = enemies_added
 
         if (delay_min > delay_max) then delay_min = delay_max end
         if (delay_max < delay_min ) then delay_max = delay_min end
@@ -369,7 +484,10 @@ function attack_group_service.do_random_attack_group(params)
     if (attack_group.fail_count and attack_group.fail_count > 1) then
         attack_group.fail_count = math_sqrt(attack_group.fail_count )
     end
+
     ::skip::
+    -- log(serpent.block(skip))
+    if (skip) then attack_group.cur_delay = attack_group.cur_delay * 0.95 end
 
     attack_group.tick = (params.tick or 0) + attack_group.cur_delay
 end
@@ -405,10 +523,16 @@ function attack_group_service.on_script_path_request_finished(event)
 
         requesting_unit_group.path_request.max_gap_distance = requesting_unit_group.spider_unit and requesting_unit_group.path_request.max_gap_distance / 0.8 or 0
 
-        local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+        -- local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
+        local surface = (planetary_surfaces or set_game() and planetary_surfaces) and planetary_surfaces[surface_name] or game and get_surface(surface_name) or set_game().get_surface(surface_name)
         if (not surface or not surface.valid) then return end
 
-        local path_id = surface.request_path(requesting_unit_group.path_request)
+        surface_funcs = surface_funcs or set_game() and surface_funcs
+        surface_funcs[surface_name] = surface_funcs[surface_name] or {}
+        surface_funcs[surface_name].request_path = surface_funcs[surface_name].request_path or surface.request_path
+
+        -- local path_id = surface.request_path(requesting_unit_group.path_request)
+        local path_id = surface_funcs[requesting_unit_group.surface_name].request_path(requesting_unit_group.path_request)
         requesting_unit_group.path_id = path_id
 
         unit_groups[path_id] = requesting_unit_group
@@ -433,20 +557,30 @@ function attack_group_service.on_script_path_request_finished(event)
     unit_groups.surface_count[surface_name] = (unit_groups.surface_count[surface_name] or 0)
     if (unit_groups.surface_count[surface_name] >= max_unit_groups) then return end
 
-    local surface = (game or set_game()).get_surface(requesting_unit_group.surface_name)
+    local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
     if (not surface or not surface.valid) then return end
 
-    local unit_group = surface.create_unit_group({ position = requesting_unit_group.start_position, })
+    surface_funcs = surface_funcs or set_game() and surface_funcs
+    surface_funcs[surface_name] = surface_funcs[surface_name] or {}
+    surface_funcs[surface_name].create_unit_group = surface_funcs[surface_name].create_unit_group or surface.create_unit_group
+
+    local unit_group = surface_funcs[surface_name].create_unit_group({ position = requesting_unit_group.start_position, })
     if (not unit_group or not unit_group.valid) then return end
 
     unit_groups.count = unit_groups.count + 1
     unit_groups.surface_count[surface_name] = unit_groups.surface_count[surface_name] + 1
 
     local unique_id = unit_group.unique_id
-    requesting_unit_group.unique_id = unique_id
+    local reg_tbl = { tick = event.tick, group = unit_group, unique_id = unique_id, starting_pos = unit_group.position, surface_name = surface_name, }
+    reg_tbl.registration_number, reg_tbl.useful_id, reg_tbl.target_type = register_on_object_destroyed(unit_group)
 
     groups = groups or set_game() and groups
-    groups[unique_id] = { tick = event.tick, group = unit_group, starting_pos = unit_group.position, }
+    groups[unique_id] = reg_tbl
+
+    on_object_destroyed = on_object_destroyed or set_game() and on_object_destroyed
+    on_object_destroyed[reg_tbl.registration_number] = reg_tbl
+
+    requesting_unit_group.unique_id = unique_id
 
     unique_ids = unique_ids or set_game() and unique_ids
     unique_ids[unique_id] = requesting_unit_group

@@ -155,9 +155,8 @@ function locals.initialize(from_scratch, maintain_data, maintain_existing_peace)
         storage.settings_map = storage.settings_map or {}
         storage.settings_map.startup = storage.settings_map.startup or {}
         storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
-        Settings_Map = storage.settings_map
         for _, setting_tbl in pairs(Runtime_Global_Settings_Constants.settings or {}) do
-            Settings_Map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, }) or setting_tbl.default_value
+            storage.settings_map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, }) or setting_tbl.default_value
         end
     end
 
@@ -188,8 +187,8 @@ function locals.migrate(params)
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "settings" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surface_creation" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "quadtrees" })
+        TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surfaces" })
         -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "attack_groups" })
-        -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "surfaces" })
         -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "entities" })
         -- TECL_Core_Utils.table.reassign(storage_old, storage, { field = "unit_groups" })
         TECL_Core_Utils.table.reassign(storage_old, storage, { field = "num_clones" })

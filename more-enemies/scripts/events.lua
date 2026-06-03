@@ -27,7 +27,6 @@ local NEUTRAL = NEUTRAL
 local PLAYER = PLAYER
 local UNDERSCORE = UNDERSCORE
 
-
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 
 local prototypes = prototypes
@@ -36,6 +35,7 @@ local clonable_units = mod_data[Constants.mod_name .. "-clonable-unit-data"]
 local planets = mod_data[Constants.mod_name .. "-planet-data"]
 
 Clonable_Units = clonable_units.data
+log(serpent.block(Clonable_Units))
 
 Planets = {}
 
@@ -53,6 +53,10 @@ Valid_Sources = {
     [BUILT] = BUILT,
 }
 
+Forces = Forces or {}
+Force_Funcs = Force_Funcs or {}
+Surfaces = Surfaces or {}
+Surface_Funcs = Surface_Funcs or {}
 
 local string_find = string.find
 
@@ -175,8 +179,11 @@ local Custom_Events = Custom_Events
 local Event_Handler = Event_Handler
 
 local Initialization = require("scripts.initialization")
+local Conductor_Controller = require("scripts.controller.conductor-controller")
 local Chunk_Controller = require("scripts.controller.chunk-controller")
+local Decay_Controller = require("scripts.controller.decay-controller")
 local Entity_Controller = require("scripts.controller.entity-controller")
+local Metrics_Controller = require("scripts.controller.metrics-controller")
 local Planet_Controller = require("scripts.controller.planet-controller")
 local Spawn_Controller = require("scripts.controller.spawn-controller")
 local Unit_Group_Controller = require("scripts.controller.unit-group-controller")
@@ -188,8 +195,11 @@ local Settings_Controller = require("__TheEckelmonster-core-library__.scripts.co
 -- Register events
 
 local events = {
+    [Conductor_Controller.name] = Conductor_Controller,
     [Chunk_Controller.name] = Chunk_Controller,
+    [Decay_Controller.name] = Decay_Controller,
     [Entity_Controller.name] = Entity_Controller,
+    [Metrics_Controller.name] = Metrics_Controller,
     [Planet_Controller.name] = Planet_Controller,
     [Spawn_Controller.name] = Spawn_Controller,
     [Unit_Group_Controller.name] = Unit_Group_Controller,
@@ -199,8 +209,11 @@ local events = {
 ---
 
 local to_init_storage = {
+    Conductor_Controller,
     Chunk_Controller,
+    Decay_Controller,
     Entity_Controller,
+    Metrics_Controller,
     Planet_Controller,
     Spawn_Controller,
     Unit_Group_Controller,
@@ -291,8 +304,13 @@ function events.on_init()
 
     Initialization.init({ maintain_data = false })
 
-    for _, v in ipairs(to_init_storage) do
-        v.init(storage)
+    for _, v in ipairs(to_init_storage) do v.init(storage) end
+
+    storage.settings_map = storage.settings_map or {}
+    storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+    for _, setting_tbl in pairs(Runtime_Global_Settings_Constants.settings or {}) do
+        storage.settings_map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, })
+        if (storage.settings_map.runtime_global[setting_tbl.name] == nil) then storage.settings_map.runtime_global[setting_tbl.name] = setting_tbl.default_value end
     end
 
     Did_Init = true
@@ -333,9 +351,7 @@ function events.on_load()
 
     Event_Handler:on_load_restore({ events = events })
 
-    for _, v in ipairs(to_init_storage) do
-        v.init(storage)
-    end
+    for _, v in ipairs(to_init_storage) do v.init(_ENV.storage) end
     Load = false
 end
 Event_Handler:register_event({
@@ -386,18 +402,16 @@ function events.on_configuration_changed(event)
 
                 Initialization.init({ maintain_data = true })
 
-                for _, v in ipairs(to_init_storage) do
-                    v.init(_ENV.storage)
-                end
+                for _, v in ipairs(to_init_storage) do v.init(_ENV.storage) end
             end
         end
     end
 
     storage.settings_map = storage.settings_map or {}
     storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
-    Settings_Map = storage.settings_map
     for _, setting_tbl in pairs(Runtime_Global_Settings_Constants.settings or {}) do
-        Settings_Map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, }) or setting_tbl.default_value
+        storage.settings_map.runtime_global[setting_tbl.name] = get_runtime_global_setting({ setting = setting_tbl.name, })
+        if (storage.settings_map.runtime_global[setting_tbl.name] == nil) then storage.settings_map.runtime_global[setting_tbl.name] = setting_tbl.default_value end
     end
 
     Configuration_Changed = false
@@ -422,22 +436,21 @@ Event_Handler:register_event({
         local subbed_to_upper = string_upper(string_gsub(trimmed, "%-", "_"))
 
         storage.settings_map = storage.settings_map or {}
-        Settings_Map = storage.settings_map
+        storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
+        storage.settings_map.startup = storage.settings_map.startup or {}
 
         local setting_value = nil
         local setting = nil
         local planet = nil
         if (Runtime_Global_Settings_Constants.settings[subbed_to_upper]) then
-            Settings_Map.runtime_global = Settings_Map.runtime_global or {}
             planet = Runtime_Global_Settings_Constants.settings[subbed_to_upper].planet
-            Settings_Map.runtime_global[event.setting] = get_runtime_global_setting({ setting = event.setting, reindex = true, })
-            setting_value = Settings_Map.runtime_global[event.setting]
+            storage.settings_map.runtime_global[event.setting] = get_runtime_global_setting({ setting = event.setting, reindex = true, })
+            setting_value = storage.settings_map.runtime_global[event.setting]
             setting = Runtime_Global_Settings_Constants.settings[subbed_to_upper]
         elseif (Startup_Settings_Constants.settings[subbed_to_upper]) then
-            Settings_Map.startup = Settings_Map.startup or {}
             planet = Startup_Settings_Constants.settings[subbed_to_upper].planet
-            Settings_Map.startup[event.setting] = get_startup_setting({ setting = event.setting, reindex = true, })
-            setting_value = Settings_Map.startup[event.setting]
+            storage.settings_map.startup[event.setting] = get_startup_setting({ setting = event.setting, reindex = true, })
+            setting_value = storage.settings_map.startup[event.setting]
             setting = Startup_Settings_Constants.settings[subbed_to_upper]
         end
 

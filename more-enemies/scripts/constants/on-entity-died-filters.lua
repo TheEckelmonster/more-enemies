@@ -99,7 +99,7 @@ entity_white_list["space-platform-hub"] = true
 
 entity_black_list["spider-leg"] = true
 
-entity_white_list["spider-unit"] = true
+-- entity_white_list["spider-unit"] = true
 entity_white_list["storage-tank"] = true
 entity_white_list["thruster"] = true
 entity_white_list["train-stop"] = true
@@ -114,7 +114,7 @@ entity_white_list["turret"] = true
 entity_white_list["ammo-turret"] = true
 entity_white_list["electric-turret"] = true
 entity_white_list["fluid-turret"] = true
-entity_white_list["unit"] = true
+-- entity_white_list["unit"] = true
 entity_white_list["valve"] = true
 entity_white_list["car"] = true
 entity_white_list["artillery-wagon"] = true

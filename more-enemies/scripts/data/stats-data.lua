@@ -12,10 +12,11 @@ local math_min = math.min
 
 local defines = defines
 local BASELINES = {
-    [defines.events.on_entity_spawned] = 1024,
-    [defines.events.on_entity_died] = 512,
-    [defines.events.script_raised_built] = 256,
-    [defines.events.on_unit_group_finished_gathering] = 32,
+    [defines.events.on_entity_spawned] = 2^10,
+    -- [defines.events.on_entity_died] = 512,
+    [defines.events.on_post_entity_died] = 2^10,
+    [defines.events.script_raised_built] = 2^8,
+    [defines.events.on_unit_group_finished_gathering] = 2^5,
 }
 
 local stats_data = {}
@@ -29,6 +30,7 @@ stats_data.previous = nil
 stats_data.activity_history = nil
 stats_data.stress_history = nil
 stats_data.welford_variance = nil
+stats_data.surface_group_stress = nil
 
 function stats_data:new(o)
     local obj = o or {}
@@ -57,12 +59,16 @@ function stats_data:new(o)
     }
     obj.event_governors = obj.event_governors or new_Simple_Queue(Simple_Queue, {})
     obj.event_gov_map = obj.event_gov_map or {}
+    obj.surface_group_stress = obj.surface_group_stress or {}
     obj.meta = obj.meta or {}
 
     self.__index = self
     return setmetatable(new_Data(Data, obj), self)
 end
 
+--[[
+    TODO: Include source filename to distinguish identical events handled across multiple event handlers
+]]
 function stats_data:process_event(event_id, tick)
     if (not self or not event_id or not tick) then return end
 

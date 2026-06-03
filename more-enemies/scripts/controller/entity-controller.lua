@@ -3,6 +3,8 @@ local stats_data
 local attack_groups
 local chunks_arr
 local chunk_maps
+local entity_chunks
+local entity_maps
 local spawner_maps
 local surfaces
 
@@ -30,17 +32,30 @@ local function set_game(event, __game, __storage)
     storage.chunk_maps = storage.chunk_maps or {}
     chunk_maps = storage.chunk_maps
 
+    storage.entity_chunks = storage.entity_chunks or {}
+    entity_chunks = storage.entity_chunks
+
+    storage.entity_maps = storage.entity_maps or {}
+    entity_maps = storage.entity_maps
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
     for _, planet in ipairs(Planets or {}) do
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+
+        chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
         spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
     end
 
@@ -54,6 +69,11 @@ local math_floor = math.floor
 local Constants = Constants
 local Event_Handler = Event_Handler
 local Log = Log
+
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
+local Quadtree_Service = require("scripts.service.quadtree-service")
+local add_node = Quadtree_Service.add_node
 
 local Forces = {
     [ENEMY] = 1,
@@ -100,21 +120,34 @@ function entity_controller.on_built_entity(event)
     surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
     local chunk_map = surfaces[surface_name].chunk_map
 
-    local chunk = {}
-    chunk.x = math_floor(position.x / Constants.CHUNK_SIZE)
-    chunk.y = math_floor(position.y / Constants.CHUNK_SIZE)
-    local xy = chunk.x .. FORWARD_SLASH .. chunk.y
-    chunk.xy = xy
+    surfaces[surface_name].entity_chunks = surfaces[surface_name].entity_chunks or {}
+    local entity_chunk_arr = surfaces[surface_name].entity_chunks
+
+    surfaces[surface_name].entity_maps = surfaces[surface_name].entity_maps or {}
+    local entity_map = surfaces[surface_name].entity_maps
+
+    local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    local chunk = chunk_map[xy] or new_Leaf_Data(Leaf_Data, {}, event.tick)
+    chunk.x = chunk.x or math_floor(position.x / Constants.CHUNK_SIZE)
+    chunk.y = chunk.y or math_floor(position.y / Constants.CHUNK_SIZE)
+    chunk.xy = chunk.xy or xy
 
     if (not chunk_map[xy]) then
+        local i = #chunks+1
+        chunk.i = i
         chunk_map[xy] = chunk
-        chunks[#chunks+1] = chunk
+        chunks[i] = chunk
+
+        i = #entity_chunk_arr+1
+        chunk_map[xy].j = i
+        entity_map[xy] = chunk_map[xy]
+        entity_chunk_arr[i] = chunk_map[xy]
 
         attack_groups = attack_groups or set_game() and attack_groups
         local attack_group = attack_groups[surface_name]
         if (attack_group) then
             attack_group.next_chunks = attack_group.next_chunks or {}
-            attack_group.next_chunks[#attack_group.next_chunks+1] = chunk
+            attack_group.next_chunks[#attack_group.next_chunks+1] = chunk_map[xy]
         end
     else
         chunk = chunk_map[xy]
@@ -171,9 +204,12 @@ function entity_controller.on_mined_entity(event)
     surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
     local chunk_map = surfaces[surface_name].chunk_map
 
+    surfaces[surface_name].entity_maps = surfaces[surface_name].entity_maps or {}
+    local entity_map = surfaces[surface_name].entity_maps
+
     local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
 
-    local chunk = chunk_map[xy]
+    local chunk = entity_map[xy]
     if (not chunk) then return end
     chunk.entity_count = chunk.entity_count or 1
     chunk.entity_count = chunk.entity_count - 1
@@ -191,7 +227,7 @@ function entity_controller.on_mined_entity(event)
             local count = #chunks
             for i = 1, count, 1 do chunks[i].i = i end
 
-            local chunk = chunk_map[xy]
+            chunk = entity_map[xy]
             if (chunk and chunk.i) then
                 local temp = chunks[count]
 
@@ -202,7 +238,7 @@ function entity_controller.on_mined_entity(event)
             end
         end
 
-        chunk_map[xy] = nil
+        entity_map[xy] = nil
     end
 end
 Event_Handler:register_events({
@@ -246,7 +282,17 @@ function entity_controller.on_biter_base_built(event)
     spawner_map[xy] = spawner_map[xy] or { x = x, y = y, xy = xy, }
 
     local chunk = spawner_map[xy]
-    if (chunk) then chunk.spawner_count = (chunk.spawner_count or 0) + 1 end
+    chunk.spawner_count = chunk.spawner_count or 0
+    if (chunk.spawner_count == 0) then
+        local node = add_node({
+            tick = event.tick or 0,
+            source_chunk = chunk,
+            surface_name = surface_name,
+        })
+
+        chunk.parent_node = node
+    end
+    chunk.spawner_count = chunk.spawner_count + 1
 end
 Event_Handler:register_event(
 {
