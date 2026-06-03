@@ -34,6 +34,14 @@ if (mods) then
             if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
         end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.ArmouredBiters-constants")))
     end
+    if (mods["castra-prime"]) then
+        __Data_Utils.foreach(function(params)
+            if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+        end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.castra-prime-constants")))
+        __Data_Utils.foreach(function(params)
+            if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+        end, __Data_Utils.unpack(require("settings.runtime-global.planets.castra-settings-constsants")))
+    end
     if (mods["Cold_biters"]) then
         __Data_Utils.foreach(function(params)
             if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
@@ -63,11 +71,26 @@ if (mods) then
             if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
         end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.old_biters_remastered-constants")))
     end
+    if (mods["planetaris-tellus"]) then
+        __Data_Utils.foreach(function(params)
+            if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+        end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.tellus-constants")))
+        __Data_Utils.foreach(function(params)
+            if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+        end, __Data_Utils.unpack(require("settings.runtime-global.planets.tellus-settings-constants")))
+    end
     if (mods["Toxic_biters"]) then
         __Data_Utils.foreach(function(params)
             if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
         end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.Toxic_biters-constants")))
     end
+
+    __Data_Utils.foreach(function(params)
+        if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+    end, __Data_Utils.unpack(require("settings.runtime-global.compatibility.fallback-constants")))
+    __Data_Utils.foreach(function(params)
+        if (params and params.setting) then runtime_global_settings_constants.settings[params.setting] = params end
+    end, __Data_Utils.unpack(require("settings.runtime-global.planets.fallback-settings-constants")))
 end
 
 __Data_Utils.foreach(function(params)

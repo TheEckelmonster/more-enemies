@@ -59,6 +59,18 @@ if (mods) then
             }
         end
     end
+    if (mods["castra-prime"]) then
+        local difficulty = require("settings.startup.planets.castra-settings-constants")
+        local spawners_names = { "data-collector", }
+        local settings = require("settings.startup.compatibility.castra-constants")
+        for i, _ in ipairs(spawners_names) do
+            spawner_settings_constants[#spawner_settings_constants+1] = {
+                unit_settings = settings,
+                difficulty_settings = difficulty,
+                spawner_name = spawners_names[i],
+            }
+        end
+    end
     if (mods["Cold_biters"]) then
         local difficulty = require("settings.startup.planets.aquilo-settings-constants")
         local spawners_names = { "cb-cold-spawner", }
@@ -107,6 +119,18 @@ if (mods) then
             }
         end
     end
+    if (mods["planetaris-tellus"]) then
+        local difficulty = require("settings.startup.planets.tellus-settings-constants")
+        local spawners_names = { "tellus-spaner, tellus-spaner-small", }
+        local settings = require("settings.startup.compatibility.tellus-constants")
+        for i, _ in ipairs(spawners_names) do
+            spawner_settings_constants[#spawner_settings_constants+1] = {
+                unit_settings = settings,
+                difficulty_settings = difficulty,
+                spawner_name = spawners_names[i],
+            }
+        end
+    end
     if (mods["Toxic_biters"]) then
         local difficulty = require("settings.startup.planets.nauvis-settings-constants")
         local spawners_names = { "toxic-biter-spawner", "tb_infected_ship", "tb_infected_ship_boss", "tb_infected_radar", }
@@ -124,8 +148,10 @@ end
 ---
 
 local next = next
+local pairs = pairs
 local Data_Utils = require("__TheEckelmonster-core-library__.libs.utils.data-utils")
 local Constants = require("scripts.constants.constants")
+local Startup_Settings_Constants = require("settings.startup.startup-settings-constants")
 
 ---
 
@@ -198,6 +224,28 @@ local function process_unit_spawner(params)
     end
 
     data:extend({ spawner_prototype, })
+end
+
+local spawners = data.raw["unit-spawner"] or {}
+
+local spawner_names = {}
+for _, params in ipairs(spawner_settings_constants) do
+    if (type(params.spawner_name) == "string") then
+        spawner_names[params.spawner_name] = 1
+    end
+end
+
+local fallback_difficulty = require("settings.startup.planets.fallback-settings-constants")
+local fallback_settings = require("settings.startup.compatibility.fallback-constants")
+
+for _, spawner in pairs(spawners) do
+    if (not spawner_names[spawner.name]) then
+        spawner_settings_constants[#spawner_settings_constants+1] = {
+            unit_settings = fallback_settings,
+            difficulty_settings = fallback_difficulty,
+            spawner_name = spawner.name,
+        }
+    end
 end
 
 for _, params in ipairs(spawner_settings_constants or {}) do

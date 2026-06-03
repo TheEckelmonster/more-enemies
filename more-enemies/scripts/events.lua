@@ -72,15 +72,17 @@ for planet, _ in pairs(planets.data or { [NAUVIS] = true, }) do
     Clone_Unit_Setting[planet] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name, })
     Clone_Unit_Group_Setting[planet] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name, })
     for unit, _ in pairs(Clonable_Units) do
-        local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+        local idx = (planet .. "_" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
         Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
             Max_Num_Unit_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, })
         end
+        Max_Num_Unit_Clones[planet].fallback = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, })
         Max_Num_Unit_Group_Clones[planet] = Max_Num_Unit_Group_Clones[planet] or {}
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"]) then
             Max_Num_Unit_Group_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, })
         end
+        Max_Num_Unit_Group_Clones[planet].fallback = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, })
     end
 end
 
@@ -105,7 +107,7 @@ end
 
 for _, planet in ipairs(Planets or { NAUVIS, }) do
     for unit, _ in pairs(Clonable_Units) do
-        local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+        local idx = (planet .. "_" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
             Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
             Max_Num_Unit_Clones[planet][unit] = Data_Utils.get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, })
@@ -126,7 +128,7 @@ function Get_Clone_Settings()
 
     for _, planet in ipairs(Planets or { NAUVIS, }) do
         for unit, _ in pairs(Clonable_Units) do
-            local idx = (planet .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+            local idx = (planet .. "_" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
             if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
                 Max_Num_Unit_Clones[planet] = Max_Num_Unit_Clones[planet] or {}
                 Max_Num_Unit_Clones[planet][unit] = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, reindex = true, })
@@ -136,6 +138,8 @@ function Get_Clone_Settings()
                 Max_Num_Unit_Group_Clones[planet][unit] = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, reindex = true, })
             end
         end
+        Max_Num_Unit_Clones[planet].fallback = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"] or {}).name, reindex = true, })
+        Max_Num_Unit_Group_Clones[planet].fallback = get_runtime_global_setting({ setting = (Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name, reindex = true, })
     end
 
     return Limits
@@ -153,6 +157,7 @@ function Set_Num_Clones()
             for u, _ in pairs(clonable_units.data) do
                 storage.num_clones[k][planet][u] = storage.num_clones[k][planet][u] or 0
             end
+            storage.num_clones[k][planet].fallback = storage.num_clones[k][planet].fallback or 0
         end
     end
 
@@ -348,7 +353,7 @@ function events.on_configuration_changed(event)
         storage.difficulties = storage.difficulties or {}
 
         for _, surface_name in ipairs(Planets or {}) do
-            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
+            storage.difficulties[surface_name] = deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
         end
     end
 

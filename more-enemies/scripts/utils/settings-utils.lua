@@ -47,7 +47,7 @@ function settings_utils.is_vanilla(surface_name)
     local return_val = true
 
     difficulties = difficulties or set_game() and difficulties
-    difficulties[surface_name] = difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficultiesget_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"])
+    difficulties[surface_name] = difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
 
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty or selected_difficulty.string_val ~= VANILLA) then return_val = false end

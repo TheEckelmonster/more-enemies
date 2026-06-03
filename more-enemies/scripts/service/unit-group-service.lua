@@ -78,7 +78,7 @@ function unit_group_service.on_unit_group_finished_gathering(event)
         num_clones[GROUP] = num_clones[GROUP] or {}
         num_clones[GROUP][surface_name] = num_clones[GROUP][surface_name] or {}
         num_clones[GROUP][surface_name][entity.name] = num_clones[GROUP][surface_name][entity.name] or 0
-        if (num_clones[GROUP][surface_name][entity.name] > (limits[GROUP] and limits[GROUP][surface_name] and limits[GROUP][surface_name][entity.name] or 400)) then return end
+        if (num_clones[GROUP][surface_name][entity.name] > (limits[GROUP] and limits[GROUP][surface_name] and (limits[GROUP][surface_name][entity.name] or limits[GROUP][surface_name].fallback) or 400)) then return end
 
         unit_number = entity.unit_number
         idx = unit_number % 60 + 1
