@@ -494,7 +494,6 @@ function spawn_service.on_tick(event)
                 if (entity_tbl.unique_id and groups[entity_tbl.unique_id]) then
                     if (groups[entity_tbl.unique_id].valid) then
                         local requesting_unit_group = unique_ids[entity_tbl.unique_id]
-                        -- if (((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) > (limits[GROUP][surface_name] or 400)) then goto continue end
                         if (    ((requesting_unit_group or requesting_unit_group_placeholder).member_count or max_unit_group_size) >= max_unit_group_size
                             or  ((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) >= (requesting_unit_group or { limit = 0, }).limit or 0
                             or  requesting_unit_group and not requesting_unit_group.enemies[1]
