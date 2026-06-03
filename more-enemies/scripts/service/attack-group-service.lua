@@ -265,7 +265,7 @@ function attack_group_service.do_random_attack_group(params)
         local num_enemies = #enemies
         if (not enemies[1] or not enemies[1].valid) then return end
 
-        difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name, reindex = true, }) or "Vanilla"]])
+        difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
 
         local selected_difficulty = difficulties[surface_name]
         if (not selected_difficulty) then return end
@@ -479,7 +479,10 @@ update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name]
 update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name] = function (event, params) max_unit_group_size = params.setting_value end
 
 for _, surface_name in ipairs(Planets or {}) do
-    update_settings[Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"]] = function (event, params) attack_group_probability_modifiers[surface_name] = params.setting_value end
+    local setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_SPAWN_ATTACK_GROUP_PROBABILITY_MODIFIER"]
+    if (setting and setting.name) then
+        update_settings[setting.name] = function (event, params) attack_group_probability_modifiers[surface_name] = params.setting_value end
+    end
 end
 
 local ME_PREFIX = ME_PREFIX

@@ -95,7 +95,7 @@ function util.make_planet_settings(params)
         id = id,
         setting_type = "runtime-global",
         order = "c[" .. id .. "]-m[do-attack-group]",
-        default_value = true,
+        default_value = false,
     }
     settings[#settings+1] = {
         setting = id:gsub("%-", "_"):upper() .. "_ATTACK_GROUP_PEACE_TIME",
