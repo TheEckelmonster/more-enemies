@@ -1,15 +1,40 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.10
+Date: 2026-06-02
+  Bug Fixes:
+    - Actually fixed runtime error when startinng a new game if Planetaris: Tellus was present (thanks to Habinero and Stasius for the reports!)
+    - (Possibly) fixed a startup error related to the ATTACK_GROUP_BLACKLIST startup setting (thanks to PerBombel for the report!)
+      - Was unable to recreate locally, but logically should be prevented in either case now
+  Compatibility:
+    - Added explicit compatibility for Planetaris: Tellus
+    - Added explicit compatibility for Castra Prime
+    - Added "Fallback" configurable settings in the event an enemy/planet mod is present, but does not have explicit compatibility settings yet
+  Misc:
+    - Changed the do/allow proactive attack group settings to be false (disabled) by default
+---------------------------------------------------------------------------------------------------
+Version: 0.7.9
+Date: 2026-05-31
+  Bug Fixes:
+    - Fixed on_unit_group_finished_gathering runtime error (thanks to Momentum6890 for the report!)
+      -> Added missing existence check before accessing variable references to storage within a loop
+    - Fixed potential error when starting a new game (thanks to Habinero for the report!)
+      -> Unknown precise context to recreate
+      -> Fixed by providing default fallback values to handle non-existent settings more gracefully
+    - Fixed attack groups being dispatched before they actually finished rallying/swarming
+      -> i.e. previously, only the first handful or so would ever be selected, before being told to move
+      -> Now, up to the allowed maximum limit (depending on difficulty) will actually form a cohesive unit-group
+---------------------------------------------------------------------------------------------------
 Version: 0.7.8
 Date: 2026-05-24
   Bug Fixes:
-    - Added missing existence check before accessing a local reference to storage
+    - Added missing existence check before accessing a local reference to storage (thanks to Vo1chara for the report!)
     - Fixed migraton script not generating the storage.surfaces table properly
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.7
 Date: 2026-05-23
   Bug Fixes:
-    - Added few missing existence checks
-    - Corrected mismatched settings variables/initializations
+    - Added few missing existence checks (thanks to MatrixVirus for the report!)
+    - Corrected mismatched settings variables/initializations (thanks to Vo1chara for the report!)
     - Fixed hard-coded default value of 30 with intended max_unit_group runtime setting
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.6

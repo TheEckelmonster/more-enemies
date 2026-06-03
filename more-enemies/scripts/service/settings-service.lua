@@ -82,8 +82,7 @@ local VANILLA = "Vanilla"
 local difficulties = {}
 if (Planets) then
     for _, planet in ipairs(Planets) do
-        log(serpent.block(Startup_Settings_Constants.settings[planet:gsub("%-", "_"):upper() .. "_DIFFICULTY"]))
-        difficulties[planet] = (Startup_Settings_Constants.settings[planet:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or {}).name or nil
+        difficulties[planet] = (Startup_Settings_Constants.settings[planet:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name or nil
     end
 end
 function settings_service.get_difficulty(surface_name)
@@ -169,9 +168,15 @@ end
 
 -- ATTACK_GROUP_BLACKLIST_NAMES
 function settings_service.get_attack_group_blacklist_names()
-    local setting = Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES.default_value
+    local setting = ""
 
-    if (settings_startup and settings_startup[Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES.name]) then
+    if (    settings_startup
+        and Startup_Settings_Constants
+        and Startup_Settings_Constants.settings
+        and Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES
+        and Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES.name
+        and settings_startup[Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES.name]
+    ) then
         setting = settings_startup[Startup_Settings_Constants.settings.ATTACK_GROUP_BLACKLIST_NAMES.name].value
     end
 

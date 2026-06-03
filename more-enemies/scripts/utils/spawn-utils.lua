@@ -26,7 +26,12 @@ local script = script
 local active_mods = script and script.active_mods or nil
 
 local math_floor = math.floor
+local math_cos = math.cos
+local math_sin = math.sin
 local math_random = math.random
+
+local PI = math.pi
+local TWO_PI  = 2 * PI
 
 local Constants = Constants
 local Startup_Settings_Constants = Startup_Settings_Constants
@@ -42,7 +47,10 @@ local is_vanilla = Settings_Utils.is_vanilla
 
 local use_evolution_factor = {}
 for _, surface_name in ipairs(Planets or {}) do
-    use_evolution_factor[surface_name] = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"].name, }) or false
+    local setting = Runtime_Global_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DO_EVOLUTION_FACTOR"]
+    if (setting and setting.name) then
+        use_evolution_factor[surface_name] = Data_Utils.get_runtime_global_setting({ setting = setting.name, }) or false
+    end
 end
 
 local spawn_utils = {}
@@ -75,7 +83,7 @@ function spawn_utils.clone_entity(entity, params)
     local surface_name = params.surface_name or entity.surface.valid and entity.surface.name
 
     difficulties = difficulties or set_game() and difficulties
-    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"].name, reindex = true, }) or "Vanilla"]])
+    difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
 
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty) then return end
@@ -112,20 +120,17 @@ function spawn_utils.clone_entity(entity, params)
     end
 
     if (types[params.type]) then
-        loop_len = ((clone_settings[params.type] or 0) + selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)
-                 + (((clone_settings[params.type] or 1) * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)) + 1
+        loop_len = math_floor(((clone_settings[params.type] or 0) + selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)
+                 + (((clone_settings[params.type] or 1) * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1)) + 1)
     else
-        loop_len = 1.5 * (selected_difficulty.value * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1) + 1
+        loop_len = math_floor(1.5 * (selected_difficulty.value * selected_difficulty.value) * (use_evolution_factor[surface_name] and clone_settings.evolution_multiplier or selected_difficulty.fallback_evolution_multiplier or selected_difficulty.value or 1) + 1)
     end
 
     local clones = {}
-    local rand = (math_random(110) + 1) / 100
 
     if (entity and entity.valid and surface and surface.valid) then
-        local find_non_colliding_position = surface.find_non_colliding_position
         local force_name = entity.force and entity.force.valid and entity.force.name or "enemy"
         local clone = entity.clone
-        local name = entity.name
         local source_position = entity.position
         local position = source_position
         local clone_tbl = {
@@ -134,8 +139,29 @@ function spawn_utils.clone_entity(entity, params)
             force = force_name,
         }
 
-        for i = 1, math_floor(loop_len) do
-            if (i % 2 == 1) then position = find_non_colliding_position(name, source_position, rand, 0.03) end
+        local sine = 0
+        local remainder = 0
+        local dx, dy = 0, 0
+
+        for i = 1, loop_len do
+            sine = math_sin(TWO_PI * ((i - 1) / loop_len))
+            remainder = i % 4
+            if (remainder == 0) then
+                dx , dy = sine, sine
+            elseif (remainder == 1) then
+                dx , dy = 0 - sine, sine
+            elseif (remainder == 2) then
+                dx , dy = sine, 0 - sine
+            elseif (remainder == 3) then
+                dx , dy = 0 - sine, 0 - sine
+            else
+                local rand = (math_random(110) + 1) / 100
+                dx , dy = rand - sine, rand - sine
+            end
+
+            position = source_position
+            position.x = position.x + dx
+            position.y = position.y + dy
             clone_tbl.position = position
 
             if (not entity.valid) then break end
@@ -176,7 +202,10 @@ local ESCAPED_DASH = ESCAPED_DASH
 local UNDERSCORE = UNDERSCORE
 for _, planet in ipairs(Planets or { NAUVIS, }) do
     local idx = planet:gsub(ESCAPED_DASH, UNDERSCORE):upper()
-    update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_DO_EVOLUTION_FACTOR"] or {}).name] = function (event, params) use_evolution_factor[planet] = params.setting_value end
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_DO_EVOLUTION_FACTOR"]
+    if (setting and setting.name) then
+        update_settings[setting.name] = function (event, params) use_evolution_factor[planet] = params.setting_value end
+    end
 end
 
 local STRING = Types.STRING
