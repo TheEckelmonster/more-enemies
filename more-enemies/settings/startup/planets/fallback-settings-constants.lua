@@ -1,3 +1,4 @@
 local Util = require("settings.startup.util")
 local id = "fallback"
-return Util.make_difficulty_settings({ settings = {}, id = id, })
+local order = "aab[zzz" .. id .. "]-zzz[difficulty]"
+return Util.make_difficulty_settings({ settings = {}, id = id, order = order, })

@@ -59,6 +59,18 @@ if (mods) then
             }
         end
     end
+    if (mods["castra-prime"]) then
+        local difficulty = require("settings.startup.planets.castra-settings-constants")
+        local spawners_names = { "data-collector", }
+        local settings = require("settings.startup.compatibility.castra-constants")
+        for i, _ in ipairs(spawners_names) do
+            spawner_settings_constants[#spawner_settings_constants+1] = {
+                unit_settings = settings,
+                difficulty_settings = difficulty,
+                spawner_name = spawners_names[i],
+            }
+        end
+    end
     if (mods["Cold_biters"]) then
         local difficulty = require("settings.startup.planets.aquilo-settings-constants")
         local spawners_names = { "cb-cold-spawner", }
@@ -99,6 +111,18 @@ if (mods) then
         local difficulty = require("settings.startup.planets.nauvis-settings-constants")
         local spawners_names = { "old-biter-spawner", "old-spitter-spawner", }
         local settings = require("settings.startup.compatibility.old_biters_remastered-constants")
+        for i, _ in ipairs(spawners_names) do
+            spawner_settings_constants[#spawner_settings_constants+1] = {
+                unit_settings = settings,
+                difficulty_settings = difficulty,
+                spawner_name = spawners_names[i],
+            }
+        end
+    end
+    if (mods["planetaris-tellus"]) then
+        local difficulty = require("settings.startup.planets.tellus-settings-constants")
+        local spawners_names = { "tellus-spaner, tellus-spaner-small", }
+        local settings = require("settings.startup.compatibility.tellus-constants")
         for i, _ in ipairs(spawners_names) do
             spawner_settings_constants[#spawner_settings_constants+1] = {
                 unit_settings = settings,
@@ -214,7 +238,6 @@ end
 local fallback_difficulty = require("settings.startup.planets.fallback-settings-constants")
 local fallback_settings = require("settings.startup.compatibility.fallback-constants")
 
-local fallbacks = {}
 for _, spawner in pairs(spawners) do
     if (not spawner_names[spawner.name]) then
         spawner_settings_constants[#spawner_settings_constants+1] = {
@@ -224,7 +247,6 @@ for _, spawner in pairs(spawners) do
         }
     end
 end
-spawner_settings_constants[#spawner_settings_constants+1] = fallbacks
 
 for _, params in ipairs(spawner_settings_constants or {}) do
     process_unit_spawner({

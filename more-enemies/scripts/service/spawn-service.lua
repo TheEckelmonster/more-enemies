@@ -291,7 +291,7 @@ function spawn_service.on_tick(event)
                             enemy = get_entity_by_unit_number(unit_number)
                             if (enemy and enemy.valid) then
 
-                                if (num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and limits[GROUP][requesting_unit_group.surface_name][enemy.name] or 400)) then
+                                if (num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and (limits[GROUP][requesting_unit_group.surface_name][enemy.name] or limits[GROUP][requesting_unit_group.surface_name].fallback) or 400)) then
                                     unit_groups.loop_cap = unit_groups.loop_cap - 1
                                     goto skip
                                 end
@@ -481,7 +481,7 @@ function spawn_service.on_tick(event)
                 num_clones[source][surface_name] = num_clones[source][surface_name] or {}
                 num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] or 0
 
-                if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and limits[GROUP][surface_name][entity_tbl.name] or 400)) then goto continue end
+                if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then goto continue end
 
                 opts = opts or set_game() and opts
                 opts.clone_settings = opts.clone_settings or {}
@@ -494,7 +494,7 @@ function spawn_service.on_tick(event)
                 if (entity_tbl.unique_id and groups[entity_tbl.unique_id]) then
                     if (groups[entity_tbl.unique_id].valid) then
                         local requesting_unit_group = unique_ids[entity_tbl.unique_id]
-                        if (((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) > (limits[GROUP][surface_name] or 400)) then goto continue end
+                        -- if (((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) > (limits[GROUP][surface_name] or 400)) then goto continue end
                         if (    ((requesting_unit_group or requesting_unit_group_placeholder).member_count or max_unit_group_size) >= max_unit_group_size
                             or  ((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) >= (requesting_unit_group or { limit = 0, }).limit or 0
                             or  requesting_unit_group and not requesting_unit_group.enemies[1]
@@ -805,7 +805,7 @@ function spawn_service.on_entity_spawned(event)
     end
 
     num_clones = num_clones or set_game() and num_clones
-    if (num_clones[SPAWNED][surface_name][entity.name] > (limits[SPAWNED] and limits[SPAWNED][surface_name] and limits[SPAWNED][surface_name][entity.name] or 400)) then return end
+    if (num_clones[SPAWNED][surface_name][entity.name] > (limits[SPAWNED] and limits[SPAWNED][surface_name] and (limits[SPAWNED][surface_name][entity.name] or limits[SPAWNED][surface_name].fallback) or 400)) then return end
 
     local unit_number = entity.unit_number
     local idx = unit_number % 60 + 1
@@ -845,7 +845,7 @@ function spawn_service.entity_built(event)
     if (not spawner or not spawner.valid) then return end
 
     num_clones = num_clones or set_game() and num_clones
-    if (num_clones[BUILT][surface_name][entity.name] > (limits[BUILT] and limits[BUILT][surface_name] or 400)) then return end
+    if (num_clones[BUILT][surface_name][entity.name] > (limits[BUILT] and (limits[BUILT][surface_name] or limits[BUILT][surface_name].fallback) or 400)) then return end
 
     local unit_number = entity.unit_number
     local idx = unit_number % 60 + 1
@@ -878,12 +878,12 @@ for _, planet in ipairs(Planets or { NAUVIS, }) do
     update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNITS"] or {}).name or 0] = function (event, params) Clone_Unit_Setting[params.surface_name or ""] = params.setting_value end
     update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_CLONE_UNIT_GROUPS"] or {}).name or 0] = function (event, params) Clone_Unit_Group_Setting[params.surface_name or ""] = params.setting_value end
     for unit, _ in pairs(Clonable_Units) do
-        local idx = (planet:gsub(ESCAPED_DASH, UNDERSCORE):upper() .. "-" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
+        local idx = (planet:gsub(ESCAPED_DASH, UNDERSCORE):upper() .. "_" .. (unit:match("[a-z]+%-(.*)") or "")):gsub(ESCAPED_DASH, UNDERSCORE):upper() or EMPTY
         if (Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"]) then
             update_settings[Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_SPAWNED_CLONES"].name or 0] = function (event, params)
                 limits = limits or set_game() and limits
                 for unit_name, _ in pairs(Clonable_Units) do
-                    if (unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
+                    if (unit_name == unit or unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
                         limits[SPAWNED][params.surface_name][unit_name] = params.setting_value or params.setting_constant.default_value
                     end
                 end
@@ -893,12 +893,24 @@ for _, planet in ipairs(Planets or { NAUVIS, }) do
             update_settings[(Runtime_Global_Settings_Constants.settings[idx .. "_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name or 0] = function (event, params)
                 limits = limits or set_game() and limits
                 for unit_name, _ in pairs(Clonable_Units) do
-                    if (unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
+                    if (unit_name == unit or unit_name:find(unit:match("[a-z]+%-(.*)") or "")) then
                         limits[GROUP][params.surface_name][unit_name] = params.setting_value or params.setting_constant.default_value
                     end
                 end
             end
         end
+    end
+    update_settings[(Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_SPAWNED_GROUP_CLONES"] or {}).name or 0] = function (event, params)
+        limits = limits or set_game() and limits
+        limits[SPAWNED] = limits[SPAWNED] or {}
+        limits[SPAWNED][params.surface_name] = limits[SPAWNED][params.surface_name] or {}
+        limits[SPAWNED][params.surface_name].fallback = params.setting_value or params.setting_constant.default_value
+    end
+    update_settings[(Runtime_Global_Settings_Constants.settings["FALLBACK_MAXIMUM_NUMBER_OF_UNIT_GROUP_CLONES"] or {}).name or 0] = function (event, params)
+        limits = limits or set_game() and limits
+        limits[GROUP] = limits[GROUP] or {}
+        limits[GROUP][params.surface_name] = limits[GROUP][params.surface_name] or {}
+        limits[GROUP][params.surface_name].fallback = params.setting_value or params.setting_constant.default_value
     end
 end
 update_settings[0] = nil

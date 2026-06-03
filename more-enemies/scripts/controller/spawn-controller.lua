@@ -376,11 +376,11 @@ update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name]
 
 for _, surface_name in ipairs(Planets or {}) do
     local idx = surface_name:gsub("%-", "_"):upper()
-    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"]
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_DO_ATTACK_GROUP"] or Runtime_Global_Settings_Constants.settings["FALLBACK_DO_ATTACK_GROUP"]
     if (setting and setting.name) then
         update_settings[setting.name] = function (event, params) do_attack_group[surface_name] = params.setting_value end
     end
-    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"]
+    local setting = Runtime_Global_Settings_Constants.settings[idx .. "_ATTACK_GROUP_PEACE_TIME"] or Runtime_Global_Settings_Constants.settings["FALLBACK_ATTACK_GROUP_PEACE_TIME"]
     if (setting and setting.name) then
         update_settings[setting.name] = function (event, params) attack_group_peace_time[surface_name] = params.setting_value end
     end

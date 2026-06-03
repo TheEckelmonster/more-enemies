@@ -18,6 +18,7 @@ function util.make_difficulty_settings(params)
     prefix = params.prefix or prefix
     local settings, id = params.settings, params.id
     local planet = params.planet or id or ""
+    local order = type(params.order) == "string" and params.order or nil
 
     settings[#settings+1] = {
         setting = id:gsub("%-", "_"):upper() .. "_DIFFICULTY",
@@ -25,7 +26,7 @@ function util.make_difficulty_settings(params)
         name = prefix .. planet .. "-difficulty",
         planet = planet,
         setting_type = "startup",
-        order = "aab[" .. planet .. "]-c[difficulty]",
+        order = order or ("aab[" .. planet .. "]-c[difficulty]"),
         default_value = "Vanilla",
         allowed_values = Constants.difficulty.difficulties_array
     }
