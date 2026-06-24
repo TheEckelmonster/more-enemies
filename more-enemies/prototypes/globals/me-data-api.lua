@@ -28,7 +28,8 @@ local TABLE = "table"
 local prototype_overrides = {
     ["character"]        = { priority = 9, weight = 96000 },
     ["character-corpse"] = { priority = 5, weight = 48000 },
-    ["nuclear-reactor"]  = { weight = (6 ^ E) * (E ^ E) + (E ^ 6), priority = 6, mode = "blend" }
+    ["nuclear-reactor"]  = { weight = (6 ^ E) * (E ^ E) + (E ^ 6), priority = 6, mode = "blend" },
+    ["stone-wall"]  = { weight = 3, priority = 1, },
 }
 local keyword_blacklist = {}
 local category_modifiers = {}

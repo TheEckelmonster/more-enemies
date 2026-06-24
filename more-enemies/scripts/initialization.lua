@@ -25,6 +25,7 @@ local me_migrations_applied_name = Custom_Events.me_migrations_applied.name
 local Migrations = require("scripts.migrations")
 local Version_Data = require("scripts.data.version-data")
 local Version_Service = require("scripts.service.version-service")
+local Generate_Quadtrees = require("migrations.generate-quadtrees")
 
 local initialization = {}
 
@@ -151,6 +152,7 @@ function locals.initialize(from_scratch, maintain_data, maintain_existing_peace)
             end
         end
 
+        if (type(Generate_Quadtrees) == "function") then Generate_Quadtrees() end
 
         storage.settings_map = storage.settings_map or {}
         storage.settings_map.startup = storage.settings_map.startup or {}

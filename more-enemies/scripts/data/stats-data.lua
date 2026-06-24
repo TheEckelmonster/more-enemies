@@ -17,6 +17,8 @@ local BASELINES = {
     [defines.events.on_post_entity_died] = 2^10,
     [defines.events.script_raised_built] = 2^8,
     [defines.events.on_unit_group_finished_gathering] = 2^5,
+    [defines.events.on_ai_command_completed] = 2^6,
+    [defines.events.on_rocket_launch_ordered] = 2^4,
 }
 
 local stats_data = {}

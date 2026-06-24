@@ -48,7 +48,7 @@ settings[#settings+1] = {
     name = prefix .. "minimum-attack-group-delay",
     setting_type = "runtime-global",
     order = "e[clone]-c[unspecified]-g[attack-group]-g[delay-min]",
-    default_value = 900,
+    default_value = 180,
     minimum_value = 0,
 }
 settings[#settings+1] = {

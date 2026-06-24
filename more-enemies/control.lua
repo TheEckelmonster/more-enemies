@@ -4,6 +4,9 @@ local script = script
     Globals
 ]]
 
+Util = require("__core__.lualib.util")
+Deepcopy = Util.table.deepcopy
+
 -- Constants
 require("scripts.constants.strings")
 
@@ -52,6 +55,7 @@ Quad_Meta_Data = require("scripts.data.quad-meta-data")
 Quadnode = require("scripts.data.quadnode")
 Quadtree = require("scripts.data.quadtree-data")
 Requesting_Unit_Group = require("scripts.data.requesting-unit-group")
+Scout_Group_Data = require("scripts.data.scout-group-data")
 Simple_Queue = require("scripts.data.simple-queue")
 Stats_Data = require("scripts.data.stats-data")
 
@@ -61,6 +65,7 @@ script.register_metatable("Quad_Meta_Data", Quad_Meta_Data)
 script.register_metatable("Quadnode", Quadnode)
 script.register_metatable("Quadtree", Quadtree)
 script.register_metatable("Requesting_Unit_Group", Requesting_Unit_Group)
+script.register_metatable("Scout_Group_Data", Scout_Group_Data)
 script.register_metatable("Simple_Queue", Simple_Queue)
 script.register_metatable("Stats_Data", Stats_Data)
 

@@ -11,9 +11,12 @@ local surfaces
 local game
 local get_surface
 local surface_funcs
+local planetary_surfaces
 
 local Planets = Planets
 local Surfaces = Surfaces
+
+local Set_Game_Funcs = Set_Game_Funcs
 
 local Stats_Data = require("scripts.data.stats-data")
 local new_Stats_Data = Stats_Data.new
@@ -59,34 +62,40 @@ local function set_game(event, __game, __storage)
         entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
         entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
-        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_maps
     end
 
     game = __game or _ENV.game
     get_surface = game.get_surface
 
-    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
-    Surface_Funcs = _ENV.Surface_Funcs
+    -- _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    -- Surface_Funcs = _ENV.Surface_Funcs
 
-    _ENV.Surfaces = _ENV.Surfaces or {}
-    Surfaces = _ENV.Surfaces
-    Surfaces.list = Surfaces.list or {}
-    for name, surface in pairs(game.surfaces) do
-        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
-            Surfaces[name] = surface
-            Surfaces.list[surface.index] = name
+    -- _ENV.Surfaces = _ENV.Surfaces or {}
+    -- Surfaces = _ENV.Surfaces
+    -- Surfaces.list = Surfaces.list or {}
+    -- for name, surface in pairs(game.surfaces) do
+    --     if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+    --         Surfaces[name] = surface
+    --         Surfaces.list[surface.index] = name
 
-            Surface_Funcs[name] = Surface_Funcs[name] or {}
-            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
-            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
-            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
-            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
-            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
-        else
-            Surfaces[name], Surface_Funcs[name] = nil, nil
-        end
-    end
-    surface_funcs = Surface_Funcs
+    --         Surface_Funcs[name] = Surface_Funcs[name] or {}
+    --         Surface_Funcs[name].build_enemy_base = Surface_Funcs[name].build_enemy_base or surface.build_enemy_base
+    --         Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+    --         Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
+    --         Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+    --         Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+    --         Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+    --     else
+    --         Surfaces[name], Surface_Funcs[name] = nil, nil
+    --     end
+    -- end
+    -- planetary_surfaces = Surfaces
+    -- surface_funcs = Surface_Funcs
+
+    Set_Game_Funcs()
+    planetary_surfaces = _ENV.Surfaces
+    surface_funcs = _ENV.Surface_Funcs
 
     return game
 end
@@ -94,6 +103,7 @@ end
 local CHUNK_SIZE = Constants.CHUNK_SIZE
 
 local math_min = math.min
+local math_random = math.random
 
 local next = next
 
@@ -107,6 +117,8 @@ local deepcopy = Utils.table.deepcopy
 
 local Attack_Group_Constants = require("libs.constants.attack-group-constants")
 local type_blacklist = Attack_Group_Constants.type_blacklist
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local Quad_Meta_Data = Quad_Meta_Data or require("scripts.data.quad-meta-data")
 local new_template = Quad_Meta_Data.new_template
 local Quadtree_Service = require("scripts.service.quadtree-service")
@@ -148,11 +160,11 @@ function attack_group_utils.get_enemy(params)
     -- log(serpent.block(chunk))
     -- if (not chunk) then return end
 
-    if (not params.xy) then return end
-    local xy = params.xy
+    if (not params.xy and (not params.chunk or (not params.chunk.x or not params.chunk.y) and not params.chunk.xy) ) then return end
+    local xy = params.xy or pack_coordinates(params.chunk.x, params.chunk.y)
 
     -- local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
-    local surface = (Surfaces or set_game() and Surfaces) and Surfaces[surface_name] or game and get_surface(surface_name) or set_game().get_surface(surface_name)
+    local surface = (planetary_surfaces or set_game() and planetary_surfaces) and planetary_surfaces[surface_name] or game and get_surface(surface_name) or set_game().get_surface(surface_name)
     if (not surface or not surface.valid) then return end
 
     difficulties[surface_name] = (difficulties or set_game() and difficulties) and difficulties[surface_name] or deepcopy(Constants.difficulty[Constants.difficulty.difficulties[get_startup_setting({ setting = (Startup_Settings_Constants.settings[surface_name:gsub("%-", "_"):upper() .. "_DIFFICULTY"] or Startup_Settings_Constants.settings["FALLBACK_DIFFICULTY"]).name, reindex = true, }) or "Vanilla"]])
@@ -160,22 +172,22 @@ function attack_group_utils.get_enemy(params)
     local selected_difficulty = difficulties[surface_name]
     if (not selected_difficulty) then return end
 
-    entity_maps = entity_maps or set_game() and entity_maps
-    local entity_map = entity_maps[surface_name]
+    spawner_maps = spawner_maps or set_game() and spawner_maps
+    local spawner_map = spawner_maps[surface_name]
 
-    local chunk = entity_map[xy]
+    local chunk = spawner_map[xy]
     if (not chunk) then
         chunk_maps = chunk_maps or set_game() and chunk_maps
         local chunk_map = chunk_maps[surface_name]
 
         chunk = chunk_map[xy]
         if (not chunk) then return end
-        entity_map[xy] = chunk
+        spawner_map[xy] = chunk
     end
 
     chunk.meta = chunk.meta or new_template(Quad_Meta_Data, params.tick)
     -- log(serpent.block(chunk))
-    -- log(serpent.block(chunk.xy))
+    -- log(serpent.block({xy = chunk.xy, unpacked = {Coordinate_Utils.unpack(chunk.xy)}}))
     -- log(serpent.block(chunk.meta))
     if (chunk.meta.sleep_until and chunk.meta.sleep_until > params.tick) then return end
 
@@ -193,14 +205,22 @@ function attack_group_utils.get_enemy(params)
     if (not position) then
         stats_data = stats_data or set_game() and stats_data
 
-        local closest_chunk = find_closest_spawner({
+        -- local closest_chunk = find_closest_spawner({
+        --     tick = params.tick or 0,
+        --     surface_name = surface_name,
+        --     target_chunk = chunk,
+        --     max_distance = meta.expanded_radius or nil,
+        -- })
+        local closest_chunks = find_closest_spawner({
             tick = params.tick or 0,
             surface_name = surface_name,
             target_chunk = chunk,
-            max_distance = meta.expanded_radius or nil
+            max_distance = meta.expanded_radius or nil,
+            limit = 1 + selected_difficulty.value,
         })
 
-        if (not closest_chunk) then
+        -- if (not closest_chunk) then
+        if (not closest_chunks or not closest_chunks[1]) then
             meta.last_radius = nil
             local streak = (meta.fail_streak or 0) + 1
             meta.fail_streak = streak
@@ -214,21 +234,32 @@ function attack_group_utils.get_enemy(params)
             meta.closest_spawner_chunk = nil
             return
         else
-            meta.closest_spawner_chunk = closest_chunk
+            -- meta.closest_spawner_chunk = closest_chunk
             meta.last_radius = (meta.last_radius or 256) + 64
             meta.tick = params.tick
 
             meta.sleep_until = nil
             meta.fail_streak = 0
 
-            meta.closest_spawner_chunk = {
-                tick_returned = params.tick,
-                x = closest_chunk.x,
-                y = closest_chunk.y,
-                xy = closest_chunk.x .. "/" .. closest_chunk.y,
-            }
+            -- meta.closest_spawner_chunk = {
+            --     tick_returned = params.tick,
+            --     x = closest_chunk.x,
+            --     y = closest_chunk.y,
+            --     xy = pack_coordinates(closest_chunk.x, closest_chunk.y),
+            -- }
 
-            position = { x = closest_chunk.x * CHUNK_SIZE + 16, y = closest_chunk.y * CHUNK_SIZE + 16, }
+            -- position = { x = closest_chunk.x * CHUNK_SIZE + 16, y = closest_chunk.y * CHUNK_SIZE + 16, }
+            local count = #closest_chunks
+            for i = 1, count, 1 do
+                meta.closest_spawner_chunk = {
+                    tick_returned = params.tick,
+                    x = closest_chunks[i].x,
+                    y = closest_chunks[i].y,
+                    xy = pack_coordinates(closest_chunks[i].x, closest_chunks[i].y),
+                }
+            end
+            local rand_chunk = count <= 1 and closest_chunks[1] or closest_chunks[math_random(count)]
+            position = { x = rand_chunk.x * CHUNK_SIZE + 16, y = rand_chunk.y * CHUNK_SIZE + 16, }
         end
     end
 
@@ -236,13 +267,14 @@ function attack_group_utils.get_enemy(params)
     if (not position) then return end
 
     surface_funcs = surface_funcs or set_game() and surface_funcs
-    return surface_funcs[surface_name].find_entities_filtered({
-        position = position,
-        radius = 24,
-        force = ENEMY,
-        type = ENEMY_TYPES,
-        limit = params.limit,
-    })
+    -- return surface_funcs[surface_name].find_entities_filtered({
+    --     position = position,
+    --     radius = 24,
+    --     force = ENEMY,
+    --     type = ENEMY_TYPES,
+    --     limit = params.limit,
+    -- })
+    return surface_funcs[surface_name].find_enemy_units(position, 24)
 end
 
 function attack_group_utils.get_target_entity(params)

@@ -12,6 +12,7 @@ local num_clones
 local opts
 local pathables
 local settings_map
+local spawner_chunks
 local spawner_maps
 local surfaces
 local unique_ids
@@ -76,6 +77,9 @@ local function set_game(event, __game, __storage)
     storage.entity_maps = storage.entity_maps or {}
     entity_maps = storage.entity_maps
 
+    storage.spawner_chunks = storage.spawner_chunks or {}
+    spawner_chunks = storage.spawner_chunks
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
@@ -83,15 +87,17 @@ local function set_game(event, __game, __storage)
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
         surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
+        surfaces[planet].spawner_chunks = surfaces[planet].spawner_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
         surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
         entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
+        spawner_chunks[planet] = spawner_chunks[planet] or surfaces[planet].spawner_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
         entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
-        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_maps
     end
 
     storage.unit_groups = storage.unit_groups or {}
@@ -117,6 +123,7 @@ local function set_game(event, __game, __storage)
             Surfaces.list[surface.index] = name
 
             Surface_Funcs[name] = Surface_Funcs[name] or {}
+            Surface_Funcs[name].build_enemy_base = Surface_Funcs[name].build_enemy_base or surface.build_enemy_base
             Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
             Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
             Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
@@ -155,8 +162,12 @@ local Valid_Surfaces = Valid_Surfaces
 
 local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
 local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local Leaf_Data = require("scripts.data.leaf-data")
 local new_Leaf_Data = Leaf_Data.new
+local Quad_Meta_Data = Quad_Meta_Data or require("scripts.data.quad-meta-data")
+local new_template = Quad_Meta_Data.new_template
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local add_node = Quadtree_Service.add_node
 local Simple_Queue = require("scripts.data.simple-queue")
@@ -178,7 +189,7 @@ end
 local clones_per_tick = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.name, }) or Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.default_value
 local max_unit_group_size = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.name, }) or Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_RUNTIME.default_value
 
-local requesting_unit_group_placeholder = { member_count = math_huge, }
+local requesting_unit_group_placeholder = { enemies_added = math_huge, }
 
 local spawn_service = {}
 spawn_service.name = "spawn_service"
@@ -217,9 +228,10 @@ function spawn_service.on_tick(event)
     event = event or { tick = game and game.tick or set_game().tick, }
 
     num_clones = num_clones or set_game() and num_clones
-
     clone_count = 0
-    local idx = event.tick % 60 + 1
+
+    local tick = event.tick
+    local idx = tick % 60 + 1
     if (    pathables[idx]
         and pathables[idx].q
     ) then
@@ -264,8 +276,11 @@ function spawn_service.on_tick(event)
                     local unit_number = requesting_unit_group.enemies[requesting_unit_group.j]
                     requesting_unit_group.enemies[requesting_unit_group.j] = nil
 
+                    -- if (    not unit_number
+                    --     and requesting_unit_group.j <= 0
+                    -- ) then
                     if (    not unit_number
-                        and requesting_unit_group.j <= 0
+                        or  requesting_unit_group.j <= 0
                     ) then
                         release = true
                         goto release_group
@@ -290,16 +305,26 @@ function spawn_service.on_tick(event)
 
                             enemy = get_entity_by_unit_number(unit_number)
                             if (enemy and enemy.valid) then
-
-                                if (num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and (limits[GROUP][requesting_unit_group.surface_name][enemy.name] or limits[GROUP][requesting_unit_group.surface_name].fallback) or 400)) then
-                                    unit_groups.loop_cap = unit_groups.loop_cap - 1
-                                    goto skip
-                                end
+                                -- if ((num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] or 0) > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and (limits[GROUP][requesting_unit_group.surface_name][enemy.name] or limits[GROUP][requesting_unit_group.surface_name].fallback) or 400)) then
+                                --     unit_groups.loop_cap = unit_groups.loop_cap - 1
+                                --     goto skip
+                                -- end
 
                                 enemy.release_from_spawner()
                                 enemy.ai_settings.allow_try_return_to_spawner = false
                                 enemy.ai_settings.join_attacks = true
                                 add_member(enemy)
+
+                                if ((num_clones[GROUP][requesting_unit_group.surface_name][enemy.name] or 0) > (limits[GROUP] and limits[GROUP][requesting_unit_group.surface_name] and (limits[GROUP][requesting_unit_group.surface_name][enemy.name] or limits[GROUP][requesting_unit_group.surface_name].fallback) or 400)) then
+                                    unit_groups.loop_cap = unit_groups.loop_cap - 1
+                                    if (    requesting_unit_group.enemies_added >= (requesting_unit_group.num_enemies or max_unit_group_size)
+                                        or  not requesting_unit_group.enemies[1]
+                                    ) then
+                                        release = true
+                                        goto release_group
+                                    end
+                                    goto skip
+                                end
 
                                 clone_count = clone_count + 1
                                 requesting_unit_group.enemies_added = requesting_unit_group.enemies_added + 1
@@ -316,7 +341,7 @@ function spawn_service.on_tick(event)
                                 group_queue.q[next_idx] = {
                                     source = GROUP,
                                     unique_id = requesting_unit_group.unique_id,
-                                    tick = event.tick,
+                                    tick = tick,
                                     unit_number = unit_number,
                                     surface_name = requesting_unit_group.surface_name,
                                 }
@@ -357,11 +382,26 @@ function spawn_service.on_tick(event)
                         goto remove
                     else
                         unit_group = group.group
-                        unit_group.set_command({
-                            type = command_attack_area,
-                            destination = requesting_unit_group.target_position,
-                            radius = 21,
-                        })
+                        -- log(serpent.block(requesting_unit_group))
+                        if (requesting_unit_group.action_type and requesting_unit_group.action_type == EXPANSION) then
+                            unit_group.set_command({
+                                type = command_build_base,
+                                destination = requesting_unit_group.target_position,
+                                ignore_planner = true,
+                            })
+                            surface_funcs = surface_funcs or set_game() and surface_funcs
+                            if (surface_funcs[requesting_unit_group.surface_name]) then
+                                local surface_func = surface_funcs[requesting_unit_group.surface_name]
+                                surface_func.build_enemy_base(requesting_unit_group.target_position, 11 + (requesting_unit_group.enemies_added or requesting_unit_group.num_enemies or 0), requesting_unit_group.force_name)
+                            end
+                        else
+                            unit_group.set_command({
+                                type = command_attack_area,
+                                destination = requesting_unit_group.target_position,
+                                radius = 21,
+                            })
+                        end
+
                         if (unit_group.valid) then unit_group.release_from_spawner() end
                         if (unit_group.valid) then unit_group.start_moving() end
 
@@ -437,6 +477,7 @@ function spawn_service.on_tick(event)
         local entity_tbl, entity = nil, nil
         local source, surface_name = nil, nil
         local clones, group = nil, nil
+        local clones_container = nil
 
         local queue_size = entity_queue.last - entity_queue.first
         if (queue_size < 0) then goto skip end
@@ -477,11 +518,11 @@ function spawn_service.on_tick(event)
 
                 source, surface_name = entity_tbl.source, entity_tbl.surface_name
 
-                num_clones[source] = num_clones[source] or {}
-                num_clones[source][surface_name] = num_clones[source][surface_name] or {}
-                num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] or 0
+                -- num_clones[source] = num_clones[source] or {}
+                -- num_clones[source][surface_name] = num_clones[source][surface_name] or {}
+                -- num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] or 0
 
-                if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then goto continue end
+                -- if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then goto continue end
 
                 opts = opts or set_game() and opts
                 opts.clone_settings = opts.clone_settings or {}
@@ -494,19 +535,34 @@ function spawn_service.on_tick(event)
                 if (entity_tbl.unique_id and groups[entity_tbl.unique_id]) then
                     if (groups[entity_tbl.unique_id].valid) then
                         local requesting_unit_group = unique_ids[entity_tbl.unique_id]
-                        if (    ((requesting_unit_group or requesting_unit_group_placeholder).member_count or max_unit_group_size) >= max_unit_group_size
-                            or  ((requesting_unit_group or requesting_unit_group_placeholder).member_count or math_huge) >= (requesting_unit_group or { limit = 0, }).limit or 0
+                        if (    ((requesting_unit_group or requesting_unit_group_placeholder).enemies_added or max_unit_group_size) >= max_unit_group_size
+                            or  ((requesting_unit_group or requesting_unit_group_placeholder).enemies_added or math_huge) >= (requesting_unit_group or { limit = 0, }).limit or 0
                             or  requesting_unit_group and not requesting_unit_group.enemies[1]
                         ) then
                             if (requesting_unit_group) then
                                 group = groups[requesting_unit_group.unique_id] and groups[requesting_unit_group.unique_id].group or nil
                                 if (group) then
                                     if (group.valid) then
-                                        group.set_command({
-                                            type = command_attack_area,
-                                            destination = requesting_unit_group.target_position,
-                                            radius = 21,
-                                        })
+                                        log(serpent.block(requesting_unit_group))
+                                        if (requesting_unit_group.action_type and requesting_unit_group.action_type == EXPANSION) then
+                                            group.set_command({
+                                                type = command_build_base,
+                                                destination = requesting_unit_group.target_position,
+                                                ignore_planner = true,
+                                            })
+                                            surface_funcs = surface_funcs or set_game() and surface_funcs
+                                            if (surface_funcs[requesting_unit_group.surface_name]) then
+                                                local surface_func = surface_funcs[requesting_unit_group.surface_name]
+                                                log(serpent.block(requesting_unit_group))
+                                                surface_func.build_enemy_base(requesting_unit_group.target_position, 11 + (requesting_unit_group.enemies_added or requesting_unit_group.num_enemies or 0), requesting_unit_group.force_name)
+                                            end
+                                        else
+                                            group.set_command({
+                                                type = command_attack_area,
+                                                destination = requesting_unit_group.target_position,
+                                                radius = 21,
+                                            })
+                                        end
                                         group.release_from_spawner()
                                         group.start_moving()
 
@@ -533,27 +589,75 @@ function spawn_service.on_tick(event)
                     end
                 end
 
-                opts.tick = event.tick
-                opts.surface_name = surface_name
-                clones = clone_entity(entity, opts)
+                num_clones[source] = num_clones[source] or {}
+                num_clones[source][surface_name] = num_clones[source][surface_name] or {}
+                num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] or 0
 
-                if (clones) then
-                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + #clones
-                    clone_count = clone_count + #clones
-                    group = groups[entity_tbl.unique_id] or nil
+                -- if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then goto continue end
+
+                -- opts.tick = tick
+                -- opts.surface_name = surface_name
+                -- clones = clone_entity(entity, opts)
+                if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then
+                    -- clones_container = { entity, }
+                    clones_container = nil
+                    -- clones = nil
+                else
+                    opts.tick = tick
+                    opts.surface_name = surface_name
+                    -- clones = clone_entity(entity, opts)
+                    -- clones_container = clone_entity(entity, opts)
+                    clones_container = clone_entity(entity, source, surface_name, Clone_Unit_Setting[surface_name] or 1, Clone_Unit_Group_Setting[surface_name] or 1, tick)
+                end
+
+                -- if (clones) then
+                --     num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + #clones
+                --     clone_count = clone_count + #clones
+                --     -- group = groups[entity_tbl.unique_id] or nil
+                --     group = groups[entity_tbl.unique_id] and groups[entity_tbl.unique_id].group or nil
+
+                --     if (source and group and group.valid) then
+                --         local add_member = group.add_member
+                --         -- for k = 1, #clones, 1 do add_member(clones[k].clone) end
+                --         for k = 1, #clones, 1 do add_member(clones[k]) end
+
+                --         if (unique_ids[entity_tbl.unique_id]) then
+                --             local group_data = unique_ids[entity_tbl.unique_id]
+                --             -- if (#(group_data.enemies or {}) > 0) then
+                --             if (#(group_data.enemies or {}) <= 0) then
+                --                 unique_ids[entity_tbl.unique_id] = nil
+
+                --                 attack_groups = attack_groups or set_game() and attack_groups
+                --                 attack_groups.unit_group_count = (attack_groups.unit_group_count or 1) - 1
+                --                 if (attack_groups.unit_group_count < 0) then attack_groups.unit_group_count = 0 end
+                --             end
+                --         end
+                --     end
+                -- end
+                if (clones_container) then
+                    local count = #clones_container
+                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + count
+                    clone_count = clone_count + count
+                    -- group = groups[entity_tbl.unique_id] or nil
+                    group = groups[entity_tbl.unique_id] and groups[entity_tbl.unique_id].group or nil
 
                     if (source and group and group.valid) then
                         local add_member = group.add_member
-                        for k = 1, #clones, 1 do add_member(clones[k].clone) end
+                        -- for k = 1, #clones, 1 do add_member(clones[k].clone) end
+                        for k = 1, count, 1 do add_member(clones_container[k]) end
 
                         if (unique_ids[entity_tbl.unique_id]) then
-                            local group_data = unique_ids[entity_tbl.unique_id]
-                            if (#(group_data.enemies or {}) > 0) then
-                                unique_ids[entity_tbl.unique_id] = nil
+                            local requesting_unit_group = unique_ids[entity_tbl.unique_id]
+                            -- if (#(requesting_unit_group.enemies or {}) > 0) then
+                            if (#(requesting_unit_group.enemies or {}) <= 0 or #group.commandable_members >= requesting_unit_group.limit) then
+                                -- unique_ids[entity_tbl.unique_id] = nil
 
-                                attack_groups = attack_groups or set_game() and attack_groups
-                                attack_groups.unit_group_count = (attack_groups.unit_group_count or 1) - 1
-                                if (attack_groups.unit_group_count < 0) then attack_groups.unit_group_count = 0 end
+                                -- attack_groups = attack_groups or set_game() and attack_groups
+                                -- attack_groups.unit_group_count = (attack_groups.unit_group_count or 1) - 1
+                                -- if (attack_groups.unit_group_count < 0) then attack_groups.unit_group_count = 0 end
+
+                                group.release_from_spawner()
+                                group.start_moving()
                             end
                         end
                     end
@@ -598,7 +702,8 @@ local function find_overlapping_chunks(entity)
 
     for x = min_chunk_x, max_chunk_x, 1 do
         for y = min_chunk_y, max_chunk_y, 1 do
-            local xy = x .. FORWARD_SLASH .. y
+            -- local xy = x .. FORWARD_SLASH .. y
+            local xy = pack_coordinates(x, y)
             if (not seen[xy]) then
                 seen[xy] = 1
                 collides_count = collides_count + 1
@@ -615,19 +720,25 @@ local entity_types = {
     [UNIT_SPAWNER] = true,
 }
 function spawn_service.on_entity_died(event)
+    -- log(serpent.block(event))
     if (not event) then return end
     local entity = event.entity
+    -- log(serpent.block(entity))
     if (not entity or not entity.valid) then return end
 
     local surface = entity.surface
+    -- log(serpent.block(surface))
+    -- log(serpent.block(Valid_Surfaces))
     if (not surface or not surface.valid or not Valid_Surfaces[surface.name]) then return end
     local surface_name = surface.name
 
     local force = entity.force
+    -- log(serpent.block(force))
     if (not force or not force.valid) then return end
 
-    if (force.name == ENEMY) then
-        if (not entity_types[entity.type]) then return end
+    local chunk = nil
+    -- if (force.name == ENEMY) then
+    --     if (not entity_types[entity.type]) then return end
 
         if (entity.type == UNIT_SPAWNER) then
 
@@ -637,36 +748,69 @@ function spawn_service.on_entity_died(event)
 
             local decremented_chunks = {}
             for _, chunk in ipairs(find_overlapping_chunks(entity)) do
+                -- log(serpent.block(_))
                 if (spawner_map[chunk.xy]) then
-                    spawner_map[chunk.xy].spawner_count = (spawner_map[chunk.xy].spawner_count or 1) - 1
+                    spawner_map[chunk.xy].meta = spawner_map[chunk.xy].meta or new_template(Quad_Meta_Data, event.tick)
+                    local spawner_c_meta = spawner_map[chunk.xy].meta
+
+                    -- spawner_map[chunk.xy].spawner_count = (spawner_map[chunk.xy].spawner_count or 1) - 1
+                    -- decremented_chunks[#decremented_chunks+1] = chunk
+                    spawner_c_meta.spawner_count = (spawner_c_meta.spawner_count or 1) - 1
                     decremented_chunks[#decremented_chunks+1] = chunk
                 end
             end
 
             for _, chunk in ipairs(decremented_chunks) do
-                if (    chunk.xy
-                    and spawner_map[chunk.xy]
-                    and (not spawner_map[chunk.xy].spawner_count or spawner_map[chunk.xy].spawner_count < 1)
-                ) then
+                -- log(serpent.block(_))
+                -- -- if (    chunk.xy
+                -- --     and spawner_map[chunk.xy]
+                -- --     and (not spawner_map[chunk.xy].spawner_count or spawner_map[chunk.xy].spawner_count < 1)
+                -- -- ) then
+                -- --     spawner_map[chunk.xy] = nil
+                -- -- end
+                -- if (    chunk.xy
+                --     and spawner_map[chunk.xy]
+                --     and not spawner_map[chunk.xy].meta
+                --     and (not spawner_map[chunk.xy].meta.spawner_count or spawner_map[chunk.xy].meta.spawner_count < 1)
+                -- ) then
+                --     spawner_map[chunk.xy] = nil
+                -- end
+                local c_meta = chunk.meta
+                if (not c_meta or not c_meta.spawner_count or c_meta.spawner_count < 1) then
                     spawner_map[chunk.xy] = nil
                 end
             end
-        end
+        -- end
     else
         chunk_maps = chunk_maps or set_game() and chunk_maps
         local chunk_map = chunk_maps[surface_name]
-        local xy = math_floor(entity.position.x / CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(entity.position.y / CHUNK_SIZE)
-        local chunk = chunk_map[xy]
+        -- local xy = math_floor(entity.position.x / CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(entity.position.y / CHUNK_SIZE)
+        local xy = pack_coordinates(math_floor(entity.position.x / CHUNK_SIZE), math_floor(entity.position.y / CHUNK_SIZE))
+        chunk = chunk_map[xy]
+        -- log(serpent.block(chunk))
         if (not chunk) then return end
+        chunk.xy = xy
 
-        chunk.entity_count = chunk.entity_count or 1
-        chunk.entity_count = chunk.entity_count - 1
+        chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+        local c_meta = chunk.meta
+        -- chunk.entity_count = math_max(chunk.entity_count or 0, 1) - 1
+        c_meta.entity_count = math_max(c_meta.entity_count or 0, 1) - 1
+    end
 
-        if (chunk.entity_count < 1) then
+    if (chunk) then
+        chunk.xy = chunk.xy or pack_coordinates(chunk.x, chunk.y)
+        chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+        local c_meta = chunk.meta
+
+        -- if (chunk.entity_count < 1 and (chunk.spawner_count or 0) < 1) then
+        if (c_meta.entity_count < 1 and (c_meta.spawner_count or 0) < 1) then
             surfaces = surfaces or set_game() and surfaces
             surfaces[surface_name] = surfaces[surface_name] or {}
             surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
             local chunks = surfaces[surface_name].chunks
+
+            chunk_maps = chunk_maps or set_game() and chunk_maps
+            local chunk_map = chunk_maps[surface_name]
 
             if (chunk.i) then
                 local count = #chunks
@@ -678,9 +822,15 @@ function spawn_service.on_entity_died(event)
                 if (temp) then temp.i = chunk.i end
             else
                 local count = #chunks
-                for i = 1, count, 1 do chunks[i].i = i end
+                if (count > 0) then
+                    for i = 1, count, 1 do
+                        if (chunks[i]) then
+                            chunks[i].i = i
+                        end
+                    end
+                end
 
-                chunk = chunk_map[xy]
+                chunk = chunk_map[chunk.xy]
                 if (chunk and chunk.i) then
                     local temp = chunks[count]
 
@@ -694,12 +844,11 @@ function spawn_service.on_entity_died(event)
             entity_maps = entity_maps or set_game() and entity_maps
             local entity_map = entity_maps[surface_name]
 
-            entity_map[xy] = nil
-            chunk_map[xy] = nil
+            entity_map[chunk.xy] = nil
+            chunk_map[chunk.xy] = nil
         end
     end
 end
-
 
 local unit_spawner_type_tbl = { UNIT_SPAWNER, }
 local enemy_force_tbl = { ENEMY, }
@@ -728,30 +877,35 @@ function spawn_service.on_entity_spawned(event)
     local position = event.spawner.position
     local x = math_floor(position.x / CHUNK_SIZE)
     local y = math_floor(position.y / CHUNK_SIZE)
-    local xy = x .. FORWARD_SLASH .. y
+    local xy = pack_coordinates(x, y)
 
     if (not chunk_maps[surface_name][xy]) then
         local chunk = new_Leaf_Data(Leaf_Data, { x = x, y = y, }, event.tick)
+        local c_meta = chunk.meta
         chunk.xy = xy
         local area = {
             { x = chunk.x * Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE, },
+            -- { x = chunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, },
             { x = chunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, },
         }
 
         surface_funcs = surface_funcs or set_game() and surface_funcs
         surface_funcs[surface_name] = surface_funcs[surface_name] or set_game() and surface_funcs[surface_name]
-        chunk.spawner_count = surface_funcs[surface_name].count_entities_filtered({
+        -- chunk.spawner_count = surface_funcs[surface_name].count_entities_filtered({
+        c_meta.spawner_count = surface_funcs[surface_name].count_entities_filtered({
             area = area,
             type = unit_spawner_type_tbl,
             force = enemy_force_tbl,
         })
 
-        spawner_maps = spawner_maps or set_game() and spawner_maps
-        spawner_maps[surface_name] = spawner_maps[surface_name] or {}
-        local spawner_map = spawner_maps[surface_name]
-        if (chunk.spawner_count > 0) then spawner_map[chunk.xy] = chunk end
+        -- spawner_maps = spawner_maps or set_game() and spawner_maps
+        -- spawner_maps[surface_name] = spawner_maps[surface_name] or {}
+        -- local spawner_map = spawner_maps[surface_name]
+        -- if (chunk.spawner_count > 0) then spawner_map[chunk.xy] = chunk end
+        -- if (c_meta.spawner_count > 0) then spawner_map[chunk.xy] = chunk end
 
-        chunk.entity_count = surface_funcs[surface_name].count_entities_filtered({
+        -- chunk.entity_count = surface_funcs[surface_name].count_entities_filtered({
+        c_meta.entity_count = surface_funcs[surface_name].count_entities_filtered({
             area = area,
             name = names,
             type = attack_group_type_blacklist,
@@ -766,37 +920,51 @@ function spawn_service.on_entity_spawned(event)
         chunk = chunk_maps[surface_name][chunk.xy]
         chunks[#chunks+1] = chunk
 
-        if (chunk.entity_count > 0) then
-            attack_groups = attack_groups or set_game() and attack_groups
-            local attack_group = attack_groups[surface_name]
-            if (attack_group) then
-                attack_group.next_chunks = attack_group.next_chunks or {}
-                attack_group.next_chunks[#attack_group.next_chunks+1] = chunk
-            end
 
-            entity_chunks = entity_chunks or set_game() and entity_chunks
-            entity_chunks[surface_name] = entity_chunks[surface_name] or {}
-            local entity_chunk_arr = entity_chunks[surface_name]
-
-            entity_chunk_arr[#entity_chunk_arr+1] = chunk_maps[surface_name][chunk.xy]
-
-            entity_maps = entity_maps or set_game() and entity_maps
-            entity_maps[surface_name] = entity_maps[surface_name] or {}
-            local entity_map = entity_maps[surface_name]
-
-            entity_map[chunk.xy] = chunk_maps[surface_name][chunk.xy]
-        end
-
-        if (    chunk.spawner_count > 0
-            or  chunk.entity_count > 0
+        if (    c_meta.spawner_count > 0
+            or  c_meta.entity_count > 0
         ) then
-            local node = add_node({
+            local node, ret_chunk = add_node({
                 tick = event.tick or 0,
                 source_chunk = chunk,
                 surface_name = surface_name,
             })
+            -- chunk.parent_node = node
 
-            chunk.parent_node = node
+            ret_chunk.xy = xy
+
+            if (c_meta.entity_count > 0) then
+                attack_groups = attack_groups or set_game() and attack_groups
+                local attack_group = attack_groups[surface_name]
+                if (attack_group) then
+                    attack_group.next_chunks = attack_group.next_chunks or {}
+                    attack_group.next_chunks[#attack_group.next_chunks+1] = ret_chunk
+                end
+
+                entity_chunks = entity_chunks or set_game() and entity_chunks
+                entity_chunks[surface_name] = entity_chunks[surface_name] or {}
+                local entity_chunk_arr = entity_chunks[surface_name]
+
+                entity_chunk_arr[#entity_chunk_arr+1] = ret_chunk
+
+                entity_maps = entity_maps or set_game() and entity_maps
+                entity_maps[surface_name] = entity_maps[surface_name] or {}
+                local entity_map = entity_maps[surface_name]
+
+                entity_map[xy] = ret_chunk
+            end
+
+            spawner_maps = spawner_maps or set_game() and spawner_maps
+            spawner_maps[surface_name] = spawner_maps[surface_name] or {}
+            local spawner_map = spawner_maps[surface_name]
+            if (c_meta.spawner_count > 0) then
+                spawner_chunks = spawner_chunks or set_game() and spawner_chunks
+                spawner_chunks[surface_name] = spawner_chunks[surface_name] or {}
+                local i = #spawner_chunks[surface_name] + 1
+                spawner_chunks[surface_name][i] = chunk
+                chunk.i = i
+                spawner_map[chunk.xy] = chunk
+            end
         end
     end
 

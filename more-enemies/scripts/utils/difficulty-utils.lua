@@ -1,8 +1,8 @@
+local storage
+
 local mods = mods
 local script = script
 local active_mods = script and script.active_mods
-
-local storage
 
 local Armoured_Biters_Constants = require("libs.constants.mods.armoured-biters-constants")
 local Cold_Biters_Constants = require("libs.constants.mods.cold-biters-constants")

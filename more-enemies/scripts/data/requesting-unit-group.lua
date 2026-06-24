@@ -4,13 +4,14 @@ local Data = Data or require("__TheEckelmonster-core-library__.libs.data.data")
 local Data_new = Data.new
 
 local NAUVIS = NAUVIS or "nauvis"
+local ENEMY = ENEMY or "enemy"
 
 local requesting_unit_group = {}
 
-requesting_unit_group.surface_name = nil
-requesting_unit_group.count = 0
+-- requesting_unit_group.count = 0
 requesting_unit_group.enemies = {}
 requesting_unit_group.surface_name = NAUVIS
+requesting_unit_group.force_name = ENEMY
 requesting_unit_group.start_position = nil
 requesting_unit_group.target_position = nil
 requesting_unit_group.xy = nil
@@ -22,7 +23,6 @@ requesting_unit_group.attempts = 0
 --[[ TODO: make configurable ]]
 requesting_unit_group.retries = 1
 requesting_unit_group.spider_unit = false
-requesting_unit_group.member_count = 0
 
 function requesting_unit_group:new(o)
 
@@ -30,6 +30,7 @@ function requesting_unit_group:new(o)
 
     obj.enemies = obj.enemies or {}
     obj.surface_name = obj.surface_name or NAUVIS
+    obj.force_name = obj.force_name or ENEMY
     obj.start_position = obj.start_position or self.start_position
     obj.target_position = obj.target_position or self.target_position
     obj.xy = obj.xy or self.xy
@@ -41,7 +42,6 @@ function requesting_unit_group:new(o)
     --[[ TODO: make configurable ]]
     obj.retries = obj.retries or self.retries
     obj.spider_unit = obj.spider_unit or self.spider_unit
-    obj.member_count = obj.member_count or self.member_count
 
     self.__index = self
     return setmetatable(Data_new(Data, obj), self)

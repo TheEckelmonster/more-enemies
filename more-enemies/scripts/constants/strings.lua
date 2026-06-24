@@ -15,17 +15,30 @@ FALSE = "false"
 TRUE = "true"
 
 NAUVIS = "nauvis"
+FULGORA = "fulgora"
 GLEBA = "gleba"
+
+CASTRA = "castra"
 
 PLAYER = "player"
 ENEMY = "enemy"
 NEUTRAL = "neutral"
+
+LANDMINE = "land-mine"
 
 SPAWNED = "spawned"
 GROUP = "group"
 BUILT = "built"
 
 SPIDER_UNIT = "spider-unit"
+
+FLYING_UNIT = "flying-unit"
+
+WATERLESS_UNIT = "waterless-unit"
+
+ATTACK = "attack"
+EXPANSION = "expansion"
+SCOUT = "scout"
 
 UNIT = "unit"
 UNIT_GROUP = "unit-group"

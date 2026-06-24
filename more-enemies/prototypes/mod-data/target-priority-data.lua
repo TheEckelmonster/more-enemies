@@ -199,8 +199,6 @@ local function compute_recipe_complexity(recipe)
 end
 
 local function compute_tehcnology_priority(recipe_name)
-    log("compute_tehcnology_priority")
-    log(serpent.block(recipe_name))
     if (type(recipe_name) ~= "string") then return 1, 0 end
 
     local target_technology = nil

@@ -10,7 +10,8 @@ local Planets = Planets
 
 local Valid_Surfaces = Valid_Surfaces or {}
 
-local Startup_Settings_Constants = Startup_Settings_Constants or require("settings.startup.startup-settings-constants")
+-- local Startup_Settings_Constants = Startup_Settings_Constants or require("settings.startup.startup-settings-constants")
+local Startup_Settings_Constants = require("settings.startup.startup-settings-constants")
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants or require("settings.runtime-global.runtime-global-settings-constants")
 
 local settings_service = {}
@@ -39,6 +40,17 @@ if (Planets) then
 end
 function settings_service.get_clone_unit_group_setting(surface_name)
     return Valid_Surfaces[surface_name] and locals.get_runtime_setting({ name = clone_unit_groups[surface_name], default = true, }) or nil
+end
+
+-- MAX_UNIT_GROUP_SIZE_STARTUP
+function settings_service.get_max_unit_group_size_startup()
+    local limit_startup = Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.default_value
+
+    if (settings_runtime and settings_runtime[Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.name]) then
+        limit_startup = settings_runtime[Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.name].value
+    end
+
+    return limit_startup
 end
 
 -- MAX_UNIT_GROUP_SIZE_RUNTIME

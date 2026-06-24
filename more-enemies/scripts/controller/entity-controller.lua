@@ -5,6 +5,7 @@ local chunks_arr
 local chunk_maps
 local entity_chunks
 local entity_maps
+local spawner_chunks
 local spawner_maps
 local surfaces
 
@@ -38,6 +39,9 @@ local function set_game(event, __game, __storage)
     storage.entity_maps = storage.entity_maps or {}
     entity_maps = storage.entity_maps
 
+    storage.spawner_chunks = storage.spawner_chunks or {}
+    spawner_chunks = storage.spawner_chunks
+
     storage.spawner_maps = storage.spawner_maps or {}
     spawner_maps = storage.spawner_maps
 
@@ -45,18 +49,19 @@ local function set_game(event, __game, __storage)
         surfaces[planet] = surfaces[planet] or {}
         surfaces[planet].chunks = surfaces[planet].chunks or {}
         surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
+        surfaces[planet].spawner_chunks = surfaces[planet].spawner_chunks or {}
         surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
         surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
         surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
         entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
+        spawner_chunks[planet] = spawner_chunks[planet] or surfaces[planet].spawner_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
         entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
-        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_maps
 
         chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
-        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
     end
 
     game = __game or _ENV.game
@@ -65,13 +70,20 @@ local function set_game(event, __game, __storage)
 end
 
 local math_floor = math.floor
+local math_max = math.max
+local math_min = math.min
 
 local Constants = Constants
 local Event_Handler = Event_Handler
 local Log = Log
 
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
+local unpack_coordinates = Coordinate_Utils.unpack
 local Leaf_Data = require("scripts.data.leaf-data")
 local new_Leaf_Data = Leaf_Data.new
+local Quad_Meta_Data = Quad_Meta_Data or require("scripts.data.quad-meta-data")
+local new_template = Quad_Meta_Data.new_template
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local add_node = Quadtree_Service.add_node
 
@@ -126,7 +138,9 @@ function entity_controller.on_built_entity(event)
     surfaces[surface_name].entity_maps = surfaces[surface_name].entity_maps or {}
     local entity_map = surfaces[surface_name].entity_maps
 
-    local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    -- local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    local xy = pack_coordinates(math_floor(position.x / Constants.CHUNK_SIZE), math_floor(position.y / Constants.CHUNK_SIZE))
+    -- local chunk = new_Leaf_Data(Leaf_Data, {}, event.tick)
     local chunk = chunk_map[xy] or new_Leaf_Data(Leaf_Data, {}, event.tick)
     chunk.x = chunk.x or math_floor(position.x / Constants.CHUNK_SIZE)
     chunk.y = chunk.y or math_floor(position.y / Constants.CHUNK_SIZE)
@@ -153,8 +167,9 @@ function entity_controller.on_built_entity(event)
         chunk = chunk_map[xy]
     end
 
-    chunk.entity_count = chunk.entity_count or 0
-    chunk.entity_count = chunk.entity_count + 1
+    -- chunk.entity_count = (chunk.entity_count or 0) + 1
+    chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+    chunk.meta.entity_count = (chunk.meta.entity_count or 0) + 1
 end
 Event_Handler:register_events({
     {
@@ -207,14 +222,19 @@ function entity_controller.on_mined_entity(event)
     surfaces[surface_name].entity_maps = surfaces[surface_name].entity_maps or {}
     local entity_map = surfaces[surface_name].entity_maps
 
-    local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    -- local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    local xy = pack_coordinates(math_floor(position.x / Constants.CHUNK_SIZE), math_floor(position.y / Constants.CHUNK_SIZE))
 
     local chunk = entity_map[xy]
     if (not chunk) then return end
-    chunk.entity_count = chunk.entity_count or 1
-    chunk.entity_count = chunk.entity_count - 1
+    -- chunk.entity_count = (chunk.entity_count or 1) - 1
+    chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+    local c_meta = chunk.meta
+    c_meta.entity_count = (c_meta.entity_count or 1) - 1
+    c_meta.witnessed_entity_count = math_max(0, math_min(c_meta.entity_count, (c_meta.witnessed_entity_count or 1) - 1))
 
-    if (chunk.entity_count < 1) then
+    -- if (chunk.entity_count < 1) then
+    if (c_meta.entity_count < 1) then
         if (chunk.i) then
             local count = #chunks
             local temp = chunks[count]
@@ -271,28 +291,68 @@ function entity_controller.on_biter_base_built(event)
 
     local x = math_floor(entity.position.x / Constants.CHUNK_SIZE)
     local y = math_floor(entity.position.y / Constants.CHUNK_SIZE)
-    local xy = x .. FORWARD_SLASH .. y
+    -- local xy = x .. FORWARD_SLASH .. y
+    local xy = pack_coordinates(x, y)
 
     local surface_name = surface.name
-    surfaces = surfaces or set_game() and surfaces
-    surfaces[surface_name] = surfaces[surface_name] or {}
+    -- surfaces = surfaces or set_game() and surfaces
+    -- surfaces[surface_name] = surfaces[surface_name] or {}
 
-    surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
-    local spawner_map = surfaces[surface_name].spawner_map
-    spawner_map[xy] = spawner_map[xy] or { x = x, y = y, xy = xy, }
+    -- local chunk = { x = x, y = y, xy = xy, }
+    -- chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+    -- local c_meta = chunk.meta
+    -- c_meta.spawner_count = c_meta.spawner_count or 0
 
+    -- surfaces[surface_name].spawner_map = surfaces[surface_name].spawner_map or {}
+    spawner_maps = spawner_maps or set_game() and spawner_maps
+    local spawner_map = spawner_maps[surface_name]
     local chunk = spawner_map[xy]
-    chunk.spawner_count = chunk.spawner_count or 0
-    if (chunk.spawner_count == 0) then
-        local node = add_node({
+    local c_meta = nil
+
+    if (chunk) then
+        chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+        c_meta = chunk.meta
+        c_meta.spawner_count = c_meta.spawner_count or 0
+    end
+
+    -- spawner_chunks = spawner_chunks or set_game() and spawner_chunks
+    -- spawner_chunks[surface_name] = spawner_chunks[surface_name] or {}
+    -- local local_spawner_chunks = spawner_chunks[surface_name]
+    -- local i = #local_spawner_chunks + 1
+    -- chunk.i = i
+    -- local_spawner_chunks[i] = chunk
+
+    -- spawner_maps = spawner_maps or set_game() and spawner_maps
+    -- spawner_maps[surface_name][xy] = chunk
+
+    -- chunk.meta = chunk.meta or new_template(Quad_Meta_Data, event.tick)
+    -- local c_meta = chunk.meta
+    -- -- chunk.spawner_count = chunk.spawner_count or 0
+    -- c_meta.spawner_count = c_meta.spawner_count or 0
+    -- if (chunk.spawner_count == 0) then
+    if (not c_meta or (c_meta.spawner_count or 0) == 0) then
+        _, chunk = add_node({
             tick = event.tick or 0,
             source_chunk = chunk,
             surface_name = surface_name,
         })
 
-        chunk.parent_node = node
+        -- chunk.parent_node = node
+        if (not chunk) then return end
+
+        spawner_chunks = spawner_chunks or set_game() and spawner_chunks
+        spawner_chunks[surface_name] = spawner_chunks[surface_name] or {}
+        local local_spawner_chunks = spawner_chunks[surface_name]
+        local i = #local_spawner_chunks + 1
+        chunk.i = i
+        local_spawner_chunks[i] = chunk
+    else
+        return
     end
-    chunk.spawner_count = chunk.spawner_count + 1
+    c_meta = chunk.meta
+    -- chunk.spawner_count = chunk.spawner_count + 1
+    c_meta.spawner_count = (c_meta and c_meta.spawner_count or 0) + 1
+    spawner_map[xy] = chunk
 end
 Event_Handler:register_event(
 {

@@ -13,6 +13,8 @@ local planetary_surfaces
 
 local Surfaces = Surfaces
 
+local Set_Game_Funcs = Set_Game_Funcs
+
 local Stats_Data = require("scripts.data.stats-data")
 local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
@@ -58,23 +60,26 @@ local function set_game(event, __game, __storage)
         entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
         chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
         entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
-        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_map
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_maps
     end
 
     game = __game or _ENV.game
 
-    _ENV.Surfaces = _ENV.Surfaces or {}
-    Surfaces = _ENV.Surfaces
-    Surfaces.list = Surfaces.list or {}
-    for name, surface in pairs(game.surfaces) do
-        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
-            Surfaces[name] = surface
-            Surfaces.list[surface.index] = name
-        else
-            Surfaces[name] = nil
-        end
-    end
-    planetary_surfaces = Surfaces
+    -- _ENV.Surfaces = _ENV.Surfaces or {}
+    -- Surfaces = _ENV.Surfaces
+    -- Surfaces.list = Surfaces.list or {}
+    -- for name, surface in pairs(game.surfaces) do
+    --     if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+    --         Surfaces[name] = surface
+    --         Surfaces.list[surface.index] = name
+    --     else
+    --         Surfaces[name] = nil
+    --     end
+    -- end
+    -- planetary_surfaces = Surfaces
+
+    Set_Game_Funcs()
+    planetary_surfaces = _ENV.Surfaces
 
     return game
 end
@@ -89,6 +94,7 @@ local pairs = pairs
 local table_insert = table.insert
 local table_size = table_size
 
+local CHUNK_LEVELS = Constants.CHUNK_LEVELS
 local NTH_TICK = 12
 
 local Log = Log
@@ -98,14 +104,15 @@ local num_planets = table_size(Planets)
 local planets = {}
 
 local i = 0
-local modulo = NTH_TICK
+local modulo = math_min(NTH_TICK, #Planets)
 for _, planet in pairs(Planets) do
-    local idx = i % modulo + 1
+    local idx = i % modulo
     planets[idx] = planets[idx] or {}
     table_insert(planets[idx], planet)
     i = i + 1
 end
 
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local apply_metrics = Quadtree_Service.apply_metrics
 local remove_node = Quadtree_Service.remove_node
@@ -114,17 +121,21 @@ local decay_controller = {}
 decay_controller.name = "decay_controller"
 decay_controller.set_game = set_game
 
-local DECAY_CONSTANT = 0.00001
+local DECAY_CONSTANT = 0.0000001
 local NEGATIVE_DECAY = -1 * DECAY_CONSTANT
-local PRUNING_THRESHOLD = 1
-local SCAR_STRESS_THRESHOLD = 2^17
+local PRUNING_THRESHOLD_WEIGHT = 30
+local PRUNING_THRESHOLD_PRIORITY = 1
+local SCAR_STRESS_THRESHOLD = 2^18
 local SCAR_WEIGHT_FLOOR = 50
 local SCAR_PRIORITY_FLOOR = 3
 
 local SIGN_OF_THE_BEAST = 666
 local BASE_DELAY = 60*SIGN_OF_THE_BEAST
 
-local DEFAULT_EMPTY_METRIC = { w = 0, fx = 0, p = 1, }
+-- local DEFAULT_EMPTY_METRIC = { w = 0, fx = 0, p = 1, }
+local DEFAULT_EMPTY_METRIC = Quad_Meta_Data.DEFAULT_EMPTY_METRIC
+
+local Metrics_Tbl = {}
 
 function decay_controller.on_nth_tick(event)
     stats_data = stats_data or set_game() and stats_data
@@ -140,8 +151,15 @@ function decay_controller.on_nth_tick(event)
     if (not planetary_surfaces) then set_game() end
     decay = decay or set_game() and decay
 
-    -- for _, surface_name in ipairs(planets[(tick / NTH_TICK ) % NTH_TICK + 1] or {}) do
-    for _, surface_name in ipairs(planets[(tick / NTH_TICK ) % NTH_TICK] or {}) do
+    -- log(serpent.block((math_floor(tick / NTH_TICK) % NTH_TICK) + 1))
+    -- log(serpent.block(planets[(math_floor(tick / NTH_TICK) % NTH_TICK) + 1]))
+
+    -- for _, surface_name in ipairs(planets[math_floor(tick / NTH_TICK ) % NTH_TICK + 1] or {}) do
+    -- for _, surface_name in ipairs(planets[((tick / NTH_TICK) % NTH_TICK) + 1] or {}) do
+    -- for _, surface_name in ipairs(planets[((tick / NTH_TICK) % modulo) + 1] or {}) do
+    for _, surface_name in ipairs(planets[(math_floor(tick / NTH_TICK) % modulo)] or {}) do
+        -- log(serpent.block(surface_name))
+    -- for _, surface_name in ipairs(planets[(tick / NTH_TICK ) % NTH_TICK] or {}) do
         if (not planetary_surfaces[surface_name] or not planetary_surfaces[surface_name].valid) then goto continue end
 
         chunks_arrs = chunks_arrs or set_game() and chunks_arrs
@@ -154,9 +172,10 @@ function decay_controller.on_nth_tick(event)
         local surface_decay = decay[surface_name]
         local curr_chunk_idx = surface_decay.idx or #chunks_arr
         local quota = math_min(sample_size, curr_chunk_idx)
-        local num_processed = 0
+        local num_processed, count = 0, 0
 
-        while num_processed < quota and curr_chunk_idx > 0 do
+        while num_processed < quota and curr_chunk_idx > 0 and count < quota do
+            count = count + 1
             local idx = curr_chunk_idx - num_processed
             if (idx < 1) then break end
 
@@ -187,6 +206,9 @@ function decay_controller.on_nth_tick(event)
 
                 if (delta_t > 0) then
                     local decay_factor = 0.1 + 0.9 * math_exp(NEGATIVE_DECAY * delta_t)
+                    -- log(serpent.block(decay_factor))
+
+                    Metrics_Tbl.w, Metrics_Tbl.fx, Metrics_Tbl.p = 0, 0, 1
 
                     if ((meta.death_weight or 0) > SCAR_STRESS_THRESHOLD) then
                         num_processed = num_processed + 1
@@ -197,20 +219,25 @@ function decay_controller.on_nth_tick(event)
                         meta.total_weight = math_max(SCAR_WEIGHT_FLOOR, old_w * decay_factor)
                         meta.aggregate_fx = math_max(SCAR_WEIGHT_FLOOR / 10, old_fx * decay_factor)
                         meta.max_priority = math_max(SCAR_PRIORITY_FLOOR, meta.max_priority or 1)
-                        -- meta.updated = tick
 
+                        -- log(serpent.block({Coordinate_Utils.unpack(chunk.xy)}))
                         if (chunk.parent_node) then
-                            apply_metrics(chunk, { w = meta.total_weight - old_w, fx = meta.aggregate_fx - old_fx, p = meta.max_priority, }, event.tick)
+                            -- log(serpent.block(chunk.xy))
+                            -- apply_metrics(chunk, { w = meta.total_weight - old_w, fx = meta.aggregate_fx - old_fx, p = meta.max_priority, }, event.tick)
+                            Metrics_Tbl.w, Metrics_Tbl.fx, Metrics_Tbl.p = meta.total_weight, meta.aggregate_fx, meta.max_priority
+                            apply_metrics(chunk, Metrics_Tbl, event.tick)
                         end
                     else
-                        if (meta.total_weight <= PRUNING_THRESHOLD) then
-                            if (    (chunk.entity_count or 0)  <= 0
-                                and (chunk.spawner_count or 0) <= 0
-                                and (meta.max_priority or 1)   <= PRUNING_THRESHOLD
-                                and (meta.player_heat or 0)    <= 0
-                                and (meta.enemy_heat or 0)     <= 0
-                                and (meta.player_deaths or 0)  <= 0
-                                and (meta.enemy_deaths or 0)   <= 0
+                        if (meta.total_weight <= PRUNING_THRESHOLD_WEIGHT) then
+                            -- if (    (chunk.entity_count or 0)  <= 0
+                            --     and (chunk.spawner_count or 0) <= 0
+                            if (    (meta.entity_count or 0)  <= 0
+                                and (meta.spawner_count or 0) <= 0
+                                and (meta.max_priority or 1)  <= PRUNING_THRESHOLD_PRIORITY
+                                and (meta.player_heat or 0)   <= 0
+                                and (meta.enemy_heat or 0)    <= 0
+                                and (meta.player_deaths or 0) <= 0
+                                and (meta.enemy_deaths or 0)  <= 0
                                 and (   not meta.witnessed
                                     or  meta.witnessed
                                     and (meta.witnessed_tick or 0) < math_max(tick - BASE_DELAY, 0)
@@ -218,8 +245,9 @@ function decay_controller.on_nth_tick(event)
                             ) then
                                 chunk_map[chunk.xy or ""] = nil
 
-                                if (chunk.parent_node) then apply_metrics(chunk, { w = -1 * (meta.total_weight or 0), fx = -1 * (meta.aggregate_fx or 0), p = 1, }, event.tick) end
-                                remove_node({ surface_name = surface_name, source_chunk = chunk, })
+                                -- remove_node({ tick = event.tick, surface_name = surface_name, source_chunk = chunk, metrics = { w = -1 * (meta.total_weight or 0), fx = -1 * (meta.aggregate_fx or 0), p = 1, }, })
+                                Metrics_Tbl.w, Metrics_Tbl.fx, Metrics_Tbl.p = -1 * (meta.total_weight or 0), -1 * (meta.aggregate_fx or 0), 1
+                                remove_node({ tick = event.tick, surface_name = surface_name, source_chunk = chunk, metrics = Metrics_Tbl, })
 
                                 local tail_count = #chunks_arr
                                 if (idx ~= tail_count) then chunks_arr[idx] = chunks_arr[tail_count] end
@@ -241,16 +269,23 @@ function decay_controller.on_nth_tick(event)
                         meta.total_weight = old_w * decay_factor
                         meta.aggregate_fx = old_fx * decay_factor
 
+                        meta.death_weight = (meta.death_weight or 0) * decay_factor
+
                         meta.enemy_deaths = math_floor((meta.enemy_deaths or 0) * decay_factor)
                         meta.player_deaths = math_floor((meta.player_deaths or 0) * decay_factor)
 
-                        if (chunk.parent_node) then apply_metrics(chunk, { w = meta.total_weight - old_w, fx = meta.aggregate_fx - old_fx, p = meta.max_priority or 1, }, event.tick) end
+                        if (chunk.parent_node) then
+                            -- log(serpent.block({{ w = meta.total_weight - old_w, fx = meta.aggregate_fx - old_fx, p = meta.max_priority or 1, }}))
+                            -- apply_metrics(chunk, { w = meta.total_weight - old_w, fx = meta.aggregate_fx - old_fx, p = meta.max_priority or 1, }, event.tick)
+                            Metrics_Tbl.w, Metrics_Tbl.fx, Metrics_Tbl.p = meta.total_weight, meta.aggregate_fx, meta.max_priority
+                            apply_metrics(chunk, Metrics_Tbl, event.tick)
+                        end
                     end
                     meta.last_decayed_tick = tick
-                    meta.updated = tick
                 else
                     num_processed = num_processed + 1
                 end
+                meta.updated = tick
             end
             ::skip::
         end

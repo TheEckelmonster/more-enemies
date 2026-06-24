@@ -1,10 +1,15 @@
 local type = type
 
+local Util = require("__core__.lualib.util")
+
 local Constants = require("scripts.constants.constants")
 
 local util = {}
 
 local prefix = Constants.mod_name .. "-"
+
+local allowed_values = Util.table.deepcopy(Constants.difficulty.difficulties_array)
+allowed_values[#allowed_values+1] = "Custom"
 
 local planets = {
     ["fulgora"] = true,
@@ -28,7 +33,8 @@ function util.make_difficulty_settings(params)
         setting_type = "startup",
         order = order or ("aab[" .. planet .. "]-c[difficulty]"),
         default_value = "Vanilla",
-        allowed_values = Constants.difficulty.difficulties_array
+        -- allowed_values = Constants.difficulty.difficulties_array
+        allowed_values = allowed_values
     }
 
     return settings

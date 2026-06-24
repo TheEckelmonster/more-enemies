@@ -2,8 +2,6 @@ local pairs = pairs
 local ipairs = ipairs
 
 --[[ Globals ]]
-Util = require("__core__.lualib.util")
-Deepcopy = Util.table.deepcopy
 local deepcopy = Deepcopy
 
 Did_Init = false
@@ -173,6 +171,13 @@ local script_raised_built_filter = {}
 Filters.on_entity_died = require("scripts.filters.on-entity-died-filter")
 Filters.script_raised_built = script_raised_built_filter
 
+SHIFT_LOOKUP = {}
+for lvls = 0, Constants.CHUNK_LEVELS, 1 do
+    SHIFT_LOOKUP[lvls] = 2 ^ (Constants.CHUNK_LEVELS - lvls)
+end
+
+To_Set_Game = require("scripts.to-set-game")
+
 ---
 
 local Custom_Events = Custom_Events
@@ -180,6 +185,7 @@ local Event_Handler = Event_Handler
 
 local Initialization = require("scripts.initialization")
 local Conductor_Controller = require("scripts.controller.conductor-controller")
+local Custodian_Controller = require("scripts.controller.custodian-controller")
 local Chunk_Controller = require("scripts.controller.chunk-controller")
 local Decay_Controller = require("scripts.controller.decay-controller")
 local Entity_Controller = require("scripts.controller.entity-controller")
@@ -196,6 +202,7 @@ local Settings_Controller = require("__TheEckelmonster-core-library__.scripts.co
 
 local events = {
     [Conductor_Controller.name] = Conductor_Controller,
+    [Custodian_Controller.name] = Custodian_Controller,
     [Chunk_Controller.name] = Chunk_Controller,
     [Decay_Controller.name] = Decay_Controller,
     [Entity_Controller.name] = Entity_Controller,
@@ -210,6 +217,7 @@ local events = {
 
 local to_init_storage = {
     Conductor_Controller,
+    Custodian_Controller,
     Chunk_Controller,
     Decay_Controller,
     Entity_Controller,
@@ -220,6 +228,7 @@ local to_init_storage = {
     Settings_Service,
 
     require("scripts.data.leaf-data"),
+    require("scripts.data.target-registry-data"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),
@@ -257,8 +266,6 @@ Event_Handler:register_events({
         func = to_init_storage.reinit_all,
     }
 })
-
-require("scripts.to-set-game")
 
 local globals = {}
 globals.set_num_clones = Set_Num_Clones

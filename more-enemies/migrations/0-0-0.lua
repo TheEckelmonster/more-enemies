@@ -1,0 +1,3 @@
+-- local type = type
+-- local func= require("migrations.generate-quadtrees")
+-- if (type(func) == "function") then func() end

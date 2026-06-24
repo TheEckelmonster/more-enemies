@@ -1,4 +1,33 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.0
+Date: 2026-06-08
+  Features:
+    - Implemented an enemy conductor/director
+      - Intended to be a macro-level orchestrator, not a micro-manager of individual units
+      - Four settings presently:
+        - None
+          -> Default; no conductor; purely a numerical enemy cloning system
+        - Random
+          -> Conductor exists to organize waves, but does so completely randomly with no sense of strategy or context
+        - Adaptive
+          -> Conductor learns the basic layout/boundaries of the player's factory; but has no understanding of the value of each entity; adapts to current pressures (or lack-there-of)
+        - Omni-mind
+          -> Similar to adaptive, but over time as evolution_factor grows, the conductor learns the value of each entity and its relative importance to the factory at large (raw resource input; technological requirements; raw input to research said technology; etc.)
+      - Primary goal is to remove the "telepathic" nature the proactive attack groups presently have
+        - Exploration, and direct/indirect interaction control how "blind" or "aware" the conductor is
+          -> An enemy being killed (direct), destroying a player entity (direct), or pollution reaching the local region sensory horizon (indirect)
+      - 3-fold system presently: scout groups, expansion groups, and attack groups
+        -> On a fixed time-sliced interval per planetary surface, the conductor is given an opportunity to request an action
+        -> If granted, the action is processed in an eagerly-yielding coroutine styled finite-state-machine function call (the function can yield its processing mid-execution, and resume execution when given another opportunity at a later point in time)
+        -> Each request is determined to be either a "top-down" or "bottom-up" request (macro vs local scope)
+          - "top-down" requests look for the best possible target for a given spawners units, within a semi-reasonable scope/amount of time
+          - "bottom-up" requests look for the best possible target for a given source spawners units in the immediate vicinity
+      - The conductor will nominally learn progressively the location, layout (and depending on settings), individual values of entities over time (i.e as evolution_factor grows towards 1) 
+  Bug Fixes:
+    - Reverted to using `surface.find_non_colliding_position` when cloning enemy units
+      - Unintentionally included a naive local experiment at not using it with the last release
+      -> Result being: enemy units could, and eventually would, clone on top of themselves and/or spawners such that they were physically stuck/immobile 
+---------------------------------------------------------------------------------------------------
 Version: 0.7.10
 Date: 2026-06-02
   Bug Fixes:
@@ -123,7 +152,7 @@ Date: 2025-08-11
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.0
 Date: 2025-08-10
-  Minor Features:
+  Features:
     - Added configurable, proactive attack groups
       -> Toggleable by planet (Nauvis and Gleba, presently)
       -> Toggleable requirement for the attack groups to spawn near spawners
@@ -170,7 +199,7 @@ Date: 2025-08-01
 ---------------------------------------------------------------------------------------------------
 Version: 0.6.0
 Date: 2025-07-25
-  Minor Features:
+  Features:
     - Separated maximum number of clones to be per planet (Nauvis and Gleba)
       Also separated per planet limit to have separate unit and unit-group limits
       - Each one should have its own configurable runtime setting (4 total)
@@ -245,7 +274,7 @@ Date: 2025-04-04
 ---------------------------------------------------------------------------------------------------
 Version: 0.5.0
 Date: 2025-04-03
-  Minor Features:
+  Features:
     - Added infrastructure to detect and support cloning of entities created by other mods, assuming they raise the 'script_raised_built' event
       -> Currently only supports B.R.E.A.M.
       - Added as an optional dependency
@@ -267,7 +296,7 @@ Date: 2025-04-03
 ---------------------------------------------------------------------------------------------------
 Version: 0.4.0
 Date: 2025-03-30
-  Minor Features:
+  Features:
     - Compatability with ArmouredBiters
     - Compatability with behemoth-enemies
     - Added console command
@@ -308,7 +337,7 @@ Date: 2025-03-29
 ---------------------------------------------------------------------------------------------------
 Version: 0.3.0
 Date: 2025-03-27
-  Minor Features:
+  Features:
     - Added configurable logging in the mod settings (Log level of 'None' by default)
       Odrder of precedence: Info > Debug > Warn > Error > None (Default)
       Includes "Do not print" and "Do function traceback" settings
@@ -335,12 +364,12 @@ Date: 2025-03-27
 ---------------------------------------------------------------------------------------------------
 Version: 0.2.0
 Date: 2025-03-14
-  Minor Features:
+  Features:
     - Added preset difficulty settings (Easy (0.1), Vanilla (1), Vanilla+ (1.75), Hard (4), Insanity (10))
     - Each setting can selectively override what would be set by the chosen difficulty
     - By default, everything is set to vanilla
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0
 Date: 2025-03-13
-  Minor Features:
+  Features:
     - Initial release

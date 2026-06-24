@@ -1,5 +1,6 @@
 local storage
 local attack_groups
+local custodian_registry
 local groups
 local num_clones
 local surface_creation
@@ -8,12 +9,19 @@ local unique_ids
 local unit_groups
 
 local game
+local get_entity_by_unit_number
 local get_surface
 local surface_funcs
+local planetary_surfaces
+
+local Set_Game_Funcs = Set_Game_Funcs
 
 local Set_Num_Clones = Set_Num_Clones
 local Surfaces = Surfaces
 
+local Constants = Constants or require("scripts.constants.constants")
+local Simple_Queue = require("scripts.data.simple-queue")
+local new_Simple_Queue = Simple_Queue.new
 local Stats_Data = require("scripts.data.stats-data")
 local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
@@ -29,6 +37,9 @@ local function set_game(event, __game, __storage)
     storage.attack_groups = storage.attack_groups or {}
     attack_groups = storage.attack_groups
 
+    storage.custodian_registry = storage.custodian_registry or new_Simple_Queue(Simple_Queue)
+    custodian_registry = storage.custodian_registry
+
     storage.groups = storage.groups or {}
     groups = storage.groups
 
@@ -42,37 +53,44 @@ local function set_game(event, __game, __storage)
     unit_groups = storage.unit_groups
 
     game = __game or _ENV.game
-
+    get_entity_by_unit_number = game.get_entity_by_unit_number
     get_surface = game.get_surface
 
-    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
-    Surface_Funcs = _ENV.Surface_Funcs
+    -- _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
+    -- Surface_Funcs = _ENV.Surface_Funcs
 
-    _ENV.Surfaces = _ENV.Surfaces or {}
-    Surfaces = _ENV.Surfaces
-    Surfaces.list = Surfaces.list or {}
-    for name, surface in pairs(game.surfaces) do
-        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
-            Surfaces[name] = surface
-            Surfaces.list[surface.index] = name
+    -- _ENV.Surfaces = _ENV.Surfaces or {}
+    -- Surfaces = _ENV.Surfaces
+    -- Surfaces.list = Surfaces.list or {}
+    -- for name, surface in pairs(game.surfaces) do
+    --     if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
+    --         Surfaces[name] = surface
+    --         Surfaces.list[surface.index] = name
 
-            Surface_Funcs[name] = Surface_Funcs[name] or {}
-            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
-            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
-            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
-            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
-            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
-        else
-            Surfaces[name], Surface_Funcs[name] = nil, nil
-        end
-    end
-    surface_funcs = Surface_Funcs
+    --         Surface_Funcs[name] = Surface_Funcs[name] or {}
+    --         Surface_Funcs[name].build_enemy_base = Surface_Funcs[name].build_enemy_base or surface.build_enemy_base
+    --         Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
+    --         Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
+    --         Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
+    --         Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
+    --         Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
+    --     else
+    --         Surfaces[name], Surface_Funcs[name] = nil, nil
+    --     end
+    -- end
+    -- planetary_surfaces = Surfaces
+    -- surface_funcs = Surface_Funcs
+
+    Set_Game_Funcs()
+    planetary_surfaces = _ENV.Surfaces
+    surface_funcs = _ENV.Surface_Funcs
 
     num_clones = Set_Num_Clones()
 
     return game
 end
 
+local math_floor = math.floor
 local math_min = math.min
 local math_sqrt = math.sqrt
 
@@ -84,6 +102,8 @@ local type = type
 
 local table_size = table_size
 
+local UINT64 = 2^64-1
+
 local defines = defines
 local defines_command = defines.command
 local valid_commands = {
@@ -91,6 +111,8 @@ local valid_commands = {
     [defines_command.attack_area] = defines_command.attack_area,
     [defines_command.compound] = defines_command.compound,
     [defines_command.go_to_location] = defines_command.go_to_location,
+    [defines_command.group] = defines_command.group,
+    [defines_command.build_base] = defines_command.build_base,
 }
 local defines_moving_state = defines.moving_state
 local valid_moving_state = {
@@ -100,7 +122,8 @@ local valid_moving_state = {
 
 local moving_state_stuck = defines_moving_state.stuck
 
-local UINT64 = 2^64-1
+local script = script
+local register_on_object_destroyed = script.register_on_object_destroyed
 
 local Clonable_Units = Clonable_Units
 local Filters = Filters
@@ -109,7 +132,6 @@ local Surfaces = Surfaces
 
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 
-local Constants = Constants or require("scripts.constants.constants")
 local Planets = Planets
 local num_planets = table_size(Planets)
 local planets = {}
@@ -123,24 +145,65 @@ for _, planet in pairs(Planets) do
     i = i + 1
 end
 
+local mod_data = prototypes.mod_data
+local target_priority_data = mod_data[Constants.mod_name .. "-target-priority-data"]
+local target_priority_DB = target_priority_data.data
+local on_entity_died_filter = {
+    { filter = "type", type = UNIT_SPAWNER, },
+}
+
+-- log(serpent.block(target_priority_DB))
+
+local types_map = {}
+for _, entry in pairs(target_priority_DB or {}) do
+    if (entry.type) then
+        types_map[entry.type] = 1
+    end
+end
+
+for entity_type, _ in pairs(types_map or {}) do
+    on_entity_died_filter[#on_entity_died_filter+1] = { filter = "type", type = entity_type, }
+end
+
+
 local Attack_Group_Data = require("scripts.data.attack-group-data")
 local new_Attack_Group_Data = Attack_Group_Data.new
 local Attack_Group_Service = require("scripts.service.attack-group-service")
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local do_random_attack_group = Attack_Group_Service.do_random_attack_group
+local do_targeted_attack_group = Attack_Group_Service.do_targeted_attack_group
 local Spawn_Service = require("scripts.service.spawn-service")
 local entity_built = Spawn_Service.entity_built
 local on_entity_died = Spawn_Service.on_entity_died
 local on_entity_spawned = Spawn_Service.on_entity_spawned
 local on_tick = Spawn_Service.on_tick
 
+local CUSTODIAN_STATES = require("scripts.constants.custodian-state-constants")
+
+local CUSTODIAN_STATE_REMOVING = CUSTODIAN_STATES.REMOVING
+
+local DESTROY_PARAMS = { raise_destroy = true, }
+
+local TICKS_PER_MINUTE = Constants.time.TICKS_PER_MINUTE
+local MAX_AGE = 60 * TICKS_PER_MINUTE
+
 local spawn_controller = {}
 spawn_controller.name = "spawn_controller"
 
 spawn_controller.set_game = set_game
 
+local conductor_styles = {
+    ["None"] = 0,
+    ["Random"] = 1,
+    ["Adaptive"] = 2,
+    ["Omni-mind"] = 3,
+}
+local selected_style = Data_Utils.get_startup_setting({ setting = Startup_Settings_Constants.settings.CONDUCTOR_STYLE.name, })
+
 local do_attack_group = {}
 local attack_group_peace_time = {}
-local max_age = Constants.time.TICKS_PER_MINUTE * Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_AGE.name, })
+local max_age = TICKS_PER_MINUTE * Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_AGE.name, })
 local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name, })
 
 for _, surface_name in pairs(Planets) do
@@ -155,8 +218,6 @@ for _, surface_name in pairs(Planets) do
     end
 end
 
-local MAX_AGE = 10 * Constants.time.TICKS_PER_MINUTE
-
 function spawn_controller.on_tick(event)
     -- Log.debug("spawn_controller.on_tick")
     -- Log.info(event)
@@ -167,6 +228,7 @@ function spawn_controller.on_tick(event)
 
     stats_data.current.total = (stats_data.current.total or 0) + 1
     stats_data.tick = event and event.tick or set_game().tick or UINT64
+    local tick = event.tick
     stats_data.current[event.name] = (stats_data.current[event.name] or 0) + 1
 
     local wv = stats_data.welford_variance
@@ -174,81 +236,139 @@ function spawn_controller.on_tick(event)
 
     if (wv.count > 1) then wv.sd = math_sqrt(wv.M2 / (wv.count - 1)) end
 
-    if (event.tick % 60 == 0) then
+    if (tick % 60 == 0) then
         wv.count = math_max(wv.count * 0.5, 10)
         wv.M2 = wv.M2 * 0.5
     end
 
-    if (stats_data.pause_until and event and event.tick < stats_data.pause_until) then goto skip end
+    if (stats_data.pause_until and event and tick < stats_data.pause_until) then goto skip end
 
     on_tick(event)
 
-    if (not planets[event.tick % modulo]) then goto skip end
-    if (not Surfaces) then set_game() end
-    for _, surface_name in ipairs(planets[event.tick % modulo]) do
-        if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < event.tick)) then
-            if (not Surfaces[surface_name] or not Surfaces[surface_name].valid) then goto continue end
+    if (not planets[tick % modulo]) then goto skip end
+    planetary_surfaces = planetary_surfaces or set_game() and planetary_surfaces
+    for _, surface_name in ipairs(planets[tick % modulo]) do
+        if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < tick)) then
+            if (not planetary_surfaces[surface_name] or not planetary_surfaces[surface_name].valid) then goto continue end
 
             if (surface_creation and not surface_creation[surface_name]) then
                 if (get_surface(surface_name).index == 1) then
                     surface_creation[surface_name] = 0
                 else
-                    surface_creation[surface_name] = event.tick
+                    surface_creation[surface_name] = tick
                 end
             end
 
-            if (((attack_group_peace_time[surface_name] or UINT64) + (surface_creation and surface_creation[surface_name] or UINT64)) >= event.tick ) then goto continue end
+            if (((attack_group_peace_time[surface_name] or UINT64) + (surface_creation and surface_creation[surface_name] or UINT64)) >= tick ) then goto continue end
 
             attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, })
-            attack_groups[surface_name].tick = attack_groups[surface_name].tick or event.tick
-            if (attack_groups[surface_name].tick > event.tick) then goto continue end
+            attack_groups[surface_name].tick = attack_groups[surface_name].tick or tick
+            if (attack_groups[surface_name].tick > tick) then goto continue end
 
-            do_random_attack_group({ surface_name = surface_name, tick = event.tick, })
+            -- attack_groups[surface_name].attack_type = ((attack_groups[surface_name].attack_type or 0) + 1) % 2
+            -- if (attack_groups[surface_name].attack_type > 0) then
+            --     do_targeted_attack_group({ surface_name = surface_name, tick = tick, })
+            -- else
+            --     do_random_attack_group({ surface_name = surface_name, tick = tick, })
+            -- end
+            if (conductor_styles[selected_style] < 2) then
+                -- do_random_attack_group({ surface_name = surface_name, tick = tick, })
+                do_random_attack_group(surface_name, tick)
+            else
+                attack_groups[surface_name].attack_type = ((attack_groups[surface_name].attack_type or 0) + 1) % 2
+                if (attack_groups[surface_name].attack_type > 0) then
+                    -- do_targeted_attack_group({ surface_name = surface_name, tick = tick, })
+                    do_targeted_attack_group(surface_name, tick)
+                else
+                    -- do_random_attack_group({ surface_name = surface_name, tick = tick, })
+                    do_random_attack_group(surface_name, tick)
+                end
+            end
         end
         ::continue::
     end
 
     ::skip::
 
-    if (event.tick % 12 == 1) then
+    if (tick % 12 == 1) then
         if (stats_data.group_idx and not groups[stats_data.group_idx]) then stats_data.group_idx = nil end
-        local k, unit_group = next(groups or set_game() and groups, stats_data.group_idx)
-        stats_data.group_idx = k
-        if (k and unit_group) then
+        -- local k, unit_group = next(groups or set_game() and groups, stats_data.group_idx)
+        -- stats_data.group_idx = k
+        local uidx, reg_tbl = next(groups or set_game() and groups, stats_data.group_idx)
+        stats_data.group_idx = uidx
+        -- if (k and unit_group) then
+        if (uidx and reg_tbl) then
             unique_ids = unique_ids or set_game() and unique_ids
             unit_groups = unit_groups or set_game() and unit_groups
 
-            local group = unit_group.group or nil
+            -- local group = unit_group.group or nil
+            local group = reg_tbl.group or nil
             if (not group or not group.valid) then
-                groups[k] = nil
-                unique_ids[k] = nil
+                -- groups[k] = nil
+                -- unique_ids[k] = nil
+                groups[uidx] = nil
+                unique_ids[uidx] = nil
                 unit_groups.count = (unit_groups.count or 1) - 1
                 if (unit_groups.count < 0) then unit_groups.count = 0 end
                 stats_data.current.group_stress = (unit_groups.count + 0.5) / (max_unit_groups + 1)
             else
                 unit_groups.count = unit_groups.count or 0
                 unit_groups.surface_count = unit_groups.surface_count or {}
-                unit_groups.surface_count[unit_group.surface_name] = unit_groups.surface_count[unit_group.surface_name] or 0
-                stats_data.surface_group_stress[unit_group.surface_name] = (unit_groups.surface_count[unit_group.surface_name] + 0) / (max_unit_groups + 1)
+                -- unit_groups.surface_count[unit_group.surface_name] = unit_groups.surface_count[unit_group.surface_name] or 0
+                -- stats_data.surface_group_stress[unit_group.surface_name] = (unit_groups.surface_count[unit_group.surface_name] + 0) / (max_unit_groups + 1)
+                unit_groups.surface_count[reg_tbl.surface_name] = unit_groups.surface_count[reg_tbl.surface_name] or 0
+                stats_data.surface_group_stress[reg_tbl.surface_name] = (unit_groups.surface_count[reg_tbl.surface_name] + 0) / (max_unit_groups + 1)
 
                 stats_data.current.group_stress = (unit_groups.count + 0) / (num_planets * max_unit_groups + 1)
 
-                stats_data.group_allowed_age = (max_age or MAX_AGE) * (1.0 - (0.75 * (math_max(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name]))))
-                if (group.moving_state == moving_state_stuck or unit_group.tick < (event.tick - stats_data.group_allowed_age)) then
-                    if ((valid_moving_state[group.moving_state] or valid_commands[group.state]) and (stats_data.current.group_stress <= 0.98 or stats_data.surface_group_stress[unit_group.surface_name] <= 0.98)) then
-                        unit_group.resets = (unit_group.resets or 0) + (math_min(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.98))
-                        unit_group.tick = event.tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.001)))
+                stats_data.group_allowed_age = (max_age or MAX_AGE) * (1.0 - (0.75 * (math_max(stats_data.current.group_stress, stats_data.surface_group_stress[reg_tbl.surface_name]))))
+                -- if (group.moving_state == moving_state_stuck or unit_group.tick < (tick - stats_data.group_allowed_age)) then
+                --     if (((valid_moving_state[group.moving_state] or valid_commands[group.state])) and (stats_data.current.group_stress <= 0.98 or stats_data.surface_group_stress[unit_group.surface_name] <= 0.98)) then
+                --         unit_group.resets = (unit_group.resets or 0) + (math_min(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.98))
+                --         unit_group.tick = tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, stats_data.surface_group_stress[unit_group.surface_name], 0.001)))
+                if (group.moving_state == moving_state_stuck or (reg_tbl.refreshed_tick or 0) < (tick - stats_data.group_allowed_age)) then
+                    if (((valid_moving_state[group.moving_state] or valid_commands[group.state])) and (stats_data.current.group_stress <= 0.98 or stats_data.surface_group_stress[reg_tbl.surface_name] <= 0.98) and ((reg_tbl.resets or 0) < 3)) then
+                        reg_tbl.resets = (reg_tbl.resets or 0) + (math_min(stats_data.current.group_stress, stats_data.surface_group_stress[reg_tbl.surface_name], 0.98))
+                        reg_tbl.refreshed_tick = math_floor(tick - (stats_data.group_allowed_age * (reg_tbl.resets * math_max(stats_data.current.group_stress, stats_data.surface_group_stress[reg_tbl.surface_name], 0.001))))
                     else
-                        if (group.valid) then group.destroy() end
-                        groups[k] = nil
-                        unique_ids[k] = nil
-                        unit_groups.count = (unit_groups.count or 1) - 1
-                        if (unit_groups.count < 0) then unit_groups.count = 0 end
+                        -- groups = groups or set_game() and groups
+                        -- local reg_tbl = groups[group.unique_id]
+
+                        -- if (not reg_tbl) then
+                        --     local unique_id = group.unique_id
+                        --     reg_tbl = { created = event.tick, updated = tick, refreshed_tick = tick, group = group, unique_id = unique_id, starting_pos = group.position, surface_name = group.surface.name, force_name = group.force.name, }
+                        --     reg_tbl.xy = pack_coordinates(reg_tbl.starting_pos.x, reg_tbl.starting_pos.y)
+                        --     reg_tbl.registration_number, reg_tbl.useful_id, reg_tbl.reg_target_type = register_on_object_destroyed(group)
+                        --     groups[group.unique_id] = reg_tbl
+                        -- end
+
+                        -- custodian_registry = custodian_registry or set_game() and custodian_registry
+                        -- custodian_registry.first, custodian_registry.last = custodian_registry.first or 1, custodian_registry.last or 1
+                        -- local next_idx = custodian_registry.last
+                        -- custodian_registry.last = next_idx + 1
+                        -- custodian_registry.q[next_idx] = {
+                        --     state = CUSTODIAN_STATE_REMOVING,
+                        --     surface_name = reg_tbl.surface_name,
+                        --     staged = { reg_tbl, },
+                        --     staged_idx = 1,
+                        --     created = tick,
+                        --     updated = tick,
+                        -- }
+
+                        local member_unit = nil
+                        local commandable_members = group.commandable_members
+                        for i = 1, #commandable_members, 1 do
+                            member_unit = commandable_members[i]
+                            if (member_unit and member_unit.valid and member_unit.is_entity) then
+                                member_unit.entity.destroy(DESTROY_PARAMS)
+                            end
+                        end
+                        group.destroy()
                     end
                 end
             end
         end
-    elseif (event.tick % 12 == 7) then
+    elseif (tick % 12 == 7) then
         if (stats_data.unique_idx and not unique_ids[stats_data.unique_idx]) then stats_data.unique_idx = nil end
         local k, v = next(unique_ids or set_game() and unique_ids, stats_data.unique_idx)
         stats_data.unique_idx = k
@@ -260,7 +380,7 @@ function spawn_controller.on_tick(event)
 
     stats_data.activity_velocity = stats_data.current.total - stats_data.previous.total
 
-    if (event.tick % 60 == 0) then
+    if (tick % 60 == 0) then
         unit_groups = unit_groups or set_game() and unit_groups
         unit_groups.count = unit_groups.count or 0
         local curr_stress = (unit_groups.count + 0.5) / (num_planets * max_unit_groups + 1)
@@ -280,19 +400,19 @@ function spawn_controller.on_tick(event)
         hist_s.last_1s = curr_stress
         hist_s.v_1s = new_stress_velocity
 
-        if (event.tick % 120 == 0) then
+        if (tick % 120 == 0) then
             hist_a.last_2s = curr_activity
             hist_a.v_2s = new_activity_velocity - hist_a.v_2s
             hist_s.last_2s = curr_stress
             hist_s.v_2s = new_stress_velocity - hist_s.v_2s
 
-            if (event.tick % 240 == 0) then
+            if (tick % 240 == 0) then
                 hist_a.last_4s = curr_activity
                 hist_a.v_4s = new_activity_velocity - hist_a.v_4s
                 hist_s.last_4s = curr_stress
                 hist_s.v_4s = new_stress_velocity - hist_s.v_4s
 
-                if (event.tick % 480 == 0) then
+                if (tick % 480 == 0) then
                     hist_a.last_8s = curr_activity
                     hist_a.v_8s = new_activity_velocity - hist_a.v_8s
                     hist_s.last_8s = curr_stress
@@ -327,8 +447,6 @@ Event_Handler:register_event({
 })
 
 function spawn_controller.on_entity_died(event)
-    -- Log.debug("spawn_controller.on_entity_died")
-    -- Log.info(event)
     stats_data = stats_data or set_game() and stats_data
     stats_data.current.total = (stats_data.current.total or 0) + 1
     if (not event) then return end
@@ -336,17 +454,19 @@ function spawn_controller.on_entity_died(event)
 
     on_entity_died(event)
 end
-Event_Handler:register_event({
-    event_name = "on_entity_died",
-    filter = Filters.on_entity_died,
-    source_name = "spawn_controller.on_entity_died",
-    func_name = "spawn_controller.on_entity_died",
-    func = spawn_controller.on_entity_died,
-})
+-- Event_Handler:register_event({
+--     event_name = "on_entity_died",
+--     -- filter = Filters.on_entity_died,
+--     filter = on_entity_died_filter,
+--     source_name = "spawn_controller.on_entity_died",
+--     func_name = "spawn_controller.on_entity_died",
+--     func = spawn_controller.on_entity_died,
+-- })
+
+-- log(serpent.block(Filters.on_entity_died))
+-- log(serpent.block(on_entity_died_filter))
 
 function spawn_controller.on_entity_spawned(event)
-    -- Log.debug("spawn_controller.on_entity_spawned")
-    -- Log.info(event)
     stats_data = stats_data or set_game() and stats_data
     stats_data.current.total = (stats_data.current.total or 0) + 1
     if (not event) then return end
@@ -367,8 +487,6 @@ Event_Handler:register_event({
 })
 
 function spawn_controller.script_raised_built(event)
-    -- Log.debug("spawn_controller.script_raised_built")
-    -- Log.info(event)
     stats_data = stats_data or set_game() and stats_data
     stats_data.current.total = (stats_data.current.total or 0) + 1
     if (not event) then return end
@@ -391,7 +509,7 @@ Event_Handler:register_event({
 
 local update_settings = {}
 
-update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_AGE.name] = function (event, params) max_age = params.setting_value end
+update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUP_AGE.name] = function (event, params) max_age = TICKS_PER_MINUTE * params.setting_value end
 update_settings[Runtime_Global_Settings_Constants.settings.MAX_UNIT_GROUPS.name] = function (event, params) max_unit_groups = params.setting_value end
 
 for _, surface_name in ipairs(Planets or {}) do
