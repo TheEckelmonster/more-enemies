@@ -54,13 +54,14 @@ end
 local ipairs = ipairs
 
 local table_insert = table.insert
-local table_remove = table.remove
 
 local Event_Handler = Event_Handler
 local Log = Log
 
 local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
 local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local Quadtree_Service = require("scripts.service.quadtree-service")
 local add_node = Quadtree_Service.add_node
 local remove_node = Quadtree_Service.remove_node
@@ -85,8 +86,6 @@ chunk_controller.set_game = set_game
 local unit_spawner_type_tbl = { UNIT_SPAWNER, }
 local enemy_force_tbl = { ENEMY, }
 local player_force_tbl = { ENEMY, NEUTRAL }
-
-local FORWARD_SLASH = FORWARD_SLASH
 
 function chunk_controller.on_chunk_generated(event)
     -- Log.debug("chunk_controller.on_chunk_generated")
@@ -117,7 +116,7 @@ function chunk_controller.on_chunk_generated(event)
     local chunk = {}
     chunk.x = chunk_position.x
     chunk.y = chunk_position.y
-    chunk.xy = chunk.x .. FORWARD_SLASH .. chunk.y
+    chunk.xy = pack_coordinates(chunk.x, chunk.y)
 
     local area = {
         { x = chunk.x * Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE, },
@@ -193,19 +192,36 @@ function chunk_controller.on_chunk_deleted(event)
     for i, chunk_position in ipairs(event.positions) do
         remove_node({ surface_name = surface_name, source_chunk = chunk_position, })
 
-        local xy = chunk_position.x .. FORWARD_SLASH .. chunk_position.y
+        local xy = pack_coordinates(chunk_position.x, chunk_position.y)
         spawner_map[xy] = nil
 
-        local count = #chunks
-        chunks[count] = nil
-
         for j, chunk in ipairs(chunks) do
-            chunk.xy = chunk.xy or (chunk.x .. FORWARD_SLASH .. chunk.y)
+            chunk.xy = chunk.xy or pack_coordinates(chunk.x, chunk.y)
             if (chunk.xy == xy) then
-                chunk_map[chunk.xy] = nil
-                -- local temp = chunks[j]
-                chunks[j] = chunks[#chunks]
-                chunks[#chunks] = nil
+                if (chunk.i) then
+                    local count = #chunks
+                    local temp = chunks[count]
+
+                    chunks[chunk.i] = temp
+                    chunks[count] = nil
+
+                    if (temp) then temp.i = chunk.i end
+                else
+                    local count = #chunks
+                    for i = 1, count, 1 do chunks[i].i = i end
+
+                    local chunk = chunk_map[xy]
+                    if (chunk and chunk.i) then
+                        local temp = chunks[count]
+
+                        chunks[chunk.i] = temp
+                        chunks[count] = nil
+
+                        if (temp) then temp.i = chunk.i end
+                    end
+                end
+
+                chunk_map[xy] = nil
                 break
             end
         end

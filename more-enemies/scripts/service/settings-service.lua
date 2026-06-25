@@ -53,6 +53,17 @@ function settings_service.get_max_unit_group_size_runtime()
 end
 settings_service.get_maximum_group_size = settings_service.get_max_unit_group_size_runtime
 
+-- MAX_UNIT_GROUP_SIZE_STARTUP
+function settings_service.get_max_unit_group_size_startup()
+    local limit_startup = Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.default_value
+
+    if (settings_runtime and settings_runtime[Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.name]) then
+        limit_startup = settings_runtime[Startup_Settings_Constants.settings.MAX_UNIT_GROUP_SIZE_STARTUP.name].value
+    end
+
+    return limit_startup
+end
+
 -- CLONES_PER_TICK
 function settings_service.get_clones_per_tick()
     local setting = Runtime_Global_Settings_Constants.settings.CLONES_PER_TICK.value

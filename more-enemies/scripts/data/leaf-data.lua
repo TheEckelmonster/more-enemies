@@ -32,8 +32,6 @@ function leaf_data:new(o, tick)
     tick = tick or (game or set_game()).tick
 
     obj.node_level = obj.node_level or CHUNK_LEVELS
-    obj.player_data = obj.player_data or { created = tick, updated = tick, }
-    obj.enemy_data = obj.enemy_data or { created = tick, updated = tick, }
 
     obj.meta = obj.meta or new_template(Quad_Meta_Data, tick)
 
