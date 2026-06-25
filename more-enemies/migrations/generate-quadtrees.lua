@@ -3,7 +3,10 @@ if (not storage) then return end
 
 storage.num_clones = nil
 
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
 local Quadtree_Service = require("scripts.service.quadtree-service")
+local add_node = Quadtree_Service.add_node
 local Simple_Queue = require("scripts.data.simple-queue")
 local new_Simple_Queue = Simple_Queue.new
 local Stats_Data = require("scripts.data.stats-data")
@@ -17,7 +20,13 @@ end
 local pairs = pairs
 local table_insert = table.insert
 
+local To_Set_Game = To_Set_Game
+
 local Attack_Group_Constants = require("settings.startup.attack-group-constants")
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
+local Quad_Meta_Data = Quad_Meta_Data or require("scripts.data.quad-meta-data")
+local new_template = Quad_Meta_Data.new_template
 
 local Constants = require("scripts.constants.constants")
 
@@ -48,65 +57,69 @@ local function migrate(params)
 
     local storage = _ENV.storage
 
+    game = game or _ENV.game
+
     storage.settings_map = storage.settings_map or {}
     storage.settings_map.startup = storage.settings_map.startup or {}
     storage.settings_map.runtime_global = storage.settings_map.runtime_global or {}
 
     storage.surface_creation = storage.surface_creation or {}
-
-    storage.settings_map = storage.settings_map or {}
-
-    game = game or _ENV.game
-
-    storage.surfaces = {}
+    storage.surfaces = storage.surfaces or {}
+    storage.quadtrees = storage.quadtrees or {}
 
     local get_surface = game.get_surface
     local tick =  game.tick
     for name, _ in pairs(planets.data or {}) do
+        storage.quadtrees[name] = nil
         local surface = get_surface(name)
 
         if (surface and surface.valid) then
-            storage.surface_creation = storage.surface_creation or {}
             storage.surface_creation[name] = storage.surface_creation[name] or surface.index == 1 and 0 or tick
 
             storage.surfaces[name] = storage.surfaces[name] or {}
-            storage.surfaces[name].iterator = surface.get_chunks()
 
-            local iterator = storage.surfaces[name].iterator
+            local iterator = surface.get_chunks()
             if (iterator and iterator.valid) then
                 storage.surfaces[name].chunks = {}
                 local chunks = storage.surfaces[name].chunks
 
-                storage.surfaces[name].spawner_map = {}
-                local spawner_map = storage.surfaces[name].spawner_map
+                storage.surfaces[name].entity_chunks = {}
+                local entity_chunks = storage.surfaces[name].entity_chunks
 
-                storage.surfaces[name].chunk_map =  {}
+                storage.surfaces[name].spawner_chunks = {}
+                local local_spawner_chunks = storage.surfaces[name].spawner_chunks
+
+                storage.surfaces[name].spawner_maps = {}
+                local spawner_map = storage.surfaces[name].spawner_maps
+
+                storage.surfaces[name].chunk_map = {}
                 local chunk_map = storage.surfaces[name].chunk_map
+
+                storage.surfaces[name].entity_maps = {}
+                local entity_map = storage.surfaces[name].entity_maps
 
                 local is_chunk_generated = surface.is_chunk_generated
                 local count_entities_filtered = surface.count_entities_filtered
 
                 for chunk in iterator do
                     if (is_chunk_generated(chunk)) then
-
-                        chunk.xy = chunk.x .. "/" .. chunk.y
+                        chunk.xy = pack_coordinates(chunk.x, chunk.y)
 
                         local area = {
                             { x = chunk.x * Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE, },
                             { x = chunk.x * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE + Constants.CHUNK_SIZE, },
                         }
 
-                        chunk.spawner_count = count_entities_filtered({
+                        chunk.meta = chunk.meta or new_template(Quad_Meta_Data, tick)
+                        local c_meta = chunk.meta
+
+                        c_meta.spawner_count = count_entities_filtered({
                             area = area,
                             type = unit_spawner_type_tbl,
                             force = enemy_force_tbl,
                         })
 
-                        if (chunk.spawner_count > 0) then
-                            spawner_map[chunk.xy] = chunk
-                        end
-
-                        chunk.entity_count = count_entities_filtered({
+                        c_meta.entity_count = count_entities_filtered({
                             area = area,
                             name = names,
                             type = Attack_Group_Constants.type_blacklist,
@@ -114,17 +127,28 @@ local function migrate(params)
                             invert = true,
                         })
 
-                        if (chunk.entity_count > 0) then
-                            chunk_map[chunk.xy] = chunk
-                            chunks[#chunks+1] = chunk
-                        end
+                        if (    c_meta.spawner_count > 0
+                            or  c_meta.entity_count > 0
+                        ) then
+                            chunk = new_Leaf_Data(Leaf_Data, chunk, tick)
 
-                        if (chunk.spawner_count > 0) then
-                            Quadtree_Service.add_node({
+                            local node, ret_chunk = add_node({
                                 tick = tick or 0,
                                 source_chunk = chunk,
                                 surface_name = name,
                             })
+
+                            chunk_map[chunk.xy] = ret_chunk
+                            chunks[#chunks+1] = ret_chunk
+
+                            if (c_meta.spawner_count > 0) then
+                                spawner_map[chunk.xy] = ret_chunk
+                                local_spawner_chunks[#local_spawner_chunks+1] = ret_chunk
+                            end
+                            if (c_meta.entity_count > 0) then
+                                entity_map[chunk.xy] = ret_chunk
+                                entity_chunks[#entity_chunks+1] = ret_chunk
+                            end
                         end
                     end
                 end
@@ -132,12 +156,7 @@ local function migrate(params)
         end
     end
 
-    for k, v in pairs(storage.entities or {}) do
-        if (not v.q or not v.first or not v.last) then
-            storage.entities[k] = new_Simple_Queue(Simple_Queue, { first = 1, last = #v + 1, q = v, })
-        end
-    end
-
+    To_Set_Game.set_game_all()
     init_stats(game or _ENV.game)
 end
 

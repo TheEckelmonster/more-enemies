@@ -29,7 +29,7 @@ if (data and data.raw and data.raw["map-settings"] and data.raw["map-settings"][
     map_settings.path_finder.clients_to_accept_short_new_request = Settings_Service.get_max_clients_to_accept_short_new_request()
     map_settings.path_finder.direct_distance_to_consider_short_request = Settings_Service.get_direct_distance_to_consider_short_request()
     map_settings.path_finder.short_request_max_steps = Settings_Service.get_short_request_max_steps()
-    map_settings.unit_group.max_unit_group_size = Settings_Service.get_max_unit_group_size_runtime()
+    map_settings.unit_group.max_unit_group_size = Settings_Service.get_max_unit_group_size_startup()
     data:extend({ map_settings, })
 end
 

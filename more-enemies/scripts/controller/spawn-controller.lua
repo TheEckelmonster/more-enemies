@@ -133,8 +133,9 @@ function spawn_controller.on_tick(event)
     stats_data.previous = stats_data.current
     stats_data.current = { total = 0, }
 
+    local tick = event.tick
     stats_data.current.total = (stats_data.current.total or 0) + 1
-    stats_data.tick = event and event.tick or set_game().tick or UINT64
+    stats_data.tick = event and tick or set_game().tick or UINT64
     stats_data.current[event.name] = (stats_data.current[event.name] or 0) + 1
 
     local wv = stats_data.welford_variance
@@ -142,42 +143,42 @@ function spawn_controller.on_tick(event)
 
     if (wv.count > 1) then wv.sd = math_sqrt(wv.M2 / (wv.count - 1)) end
 
-    if (event.tick % 60 == 0) then
+    if (tick % 60 == 0) then
         wv.count = math_max(wv.count * 0.5, 10)
         wv.M2 = wv.M2 * 0.5
     end
 
-    if (stats_data.pause_until and event and event.tick < stats_data.pause_until) then goto skip end
+    if (stats_data.pause_until and event and tick < stats_data.pause_until) then goto skip end
 
     on_tick(event)
 
-    if (not planets[event.tick % modulo]) then goto skip end
-    for _, surface_name in ipairs(planets[event.tick % modulo]) do
-        if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < event.tick)) then
+    if (not planets[tick % modulo]) then goto skip end
+    for _, surface_name in ipairs(planets[tick % modulo]) do
+        if (do_attack_group[surface_name] and (attack_group_peace_time[surface_name] < tick)) then
             if (not (game and get_surface(surface_name) or set_game().get_surface(surface_name) or {}).valid) then goto continue end
 
             if (surface_creation and not surface_creation[surface_name]) then
                 if (get_surface(surface_name).index == 1) then
                     surface_creation[surface_name] = 0
                 else
-                    surface_creation[surface_name] = event.tick
+                    surface_creation[surface_name] = tick
                 end
             end
 
-            if (((attack_group_peace_time[surface_name] or UINT64) + (surface_creation and surface_creation[surface_name] or UINT64)) >= event.tick ) then goto continue end
+            if (((attack_group_peace_time[surface_name] or UINT64) + (surface_creation and surface_creation[surface_name] or UINT64)) >= tick ) then goto continue end
 
             attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, })
-            attack_groups[surface_name].tick = attack_groups[surface_name].tick or event.tick
-            if (attack_groups[surface_name].tick > event.tick) then goto continue end
+            attack_groups[surface_name].tick = attack_groups[surface_name].tick or tick
+            if (attack_groups[surface_name].tick > tick) then goto continue end
 
-            do_random_attack_group({ surface_name = surface_name, tick = event.tick, })
+            do_random_attack_group(surface_name, tick)
         end
         ::continue::
     end
 
     ::skip::
 
-    if (event.tick % 12 == 1) then
+    if (tick % 12 == 1) then
         if (stats_data.group_idx and not groups[stats_data.group_idx]) then stats_data.group_idx = nil end
         local k, unit_group = next(groups or set_game() and groups, stats_data.group_idx)
         stats_data.group_idx = k
@@ -196,10 +197,10 @@ function spawn_controller.on_tick(event)
                 unit_groups.count = unit_groups.count or 1
                 stats_data.current.group_stress = (unit_groups.count + 1) / (max_unit_groups + 1)
                 stats_data.group_allowed_age = (max_age or MAX_AGE) * (1.0 - (0.75 * stats_data.current.group_stress))
-                if (group.moving_state == moving_state_stuck or unit_group.tick < (event.tick - stats_data.group_allowed_age)) then
+                if (group.moving_state == moving_state_stuck or unit_group.tick < (tick - stats_data.group_allowed_age)) then
                     if ((valid_moving_state[group.moving_state] or valid_commands[group.state]) and stats_data.current.group_stress < 0.98) then
                         unit_group.resets = (unit_group.resets or -1) + 1
-                        unit_group.tick = event.tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, 0.001)))
+                        unit_group.tick = tick - (stats_data.group_allowed_age * (unit_group.resets * math_max(stats_data.current.group_stress, 0.001)))
                     else
                         if (unit_group.group.valid) then unit_group.group.destroy() end
                         groups[k] = nil
@@ -210,7 +211,7 @@ function spawn_controller.on_tick(event)
                 end
             end
         end
-    elseif (event.tick % 12 == 7) then
+    elseif (tick % 12 == 7) then
         if (stats_data.unique_idx and not unique_ids[stats_data.unique_idx]) then stats_data.unique_idx = nil end
         local k, v = next(unique_ids or set_game() and unique_ids, stats_data.unique_idx)
         stats_data.unique_idx = k
@@ -222,7 +223,7 @@ function spawn_controller.on_tick(event)
 
     stats_data.activity_velocity = stats_data.current.total - stats_data.previous.total
 
-    if (event.tick % 60 == 0) then
+    if (tick % 60 == 0) then
         unit_groups = unit_groups or set_game() and unit_groups
         unit_groups.count = unit_groups.count or 0
         local curr_stress = (unit_groups.count + 1) / (max_unit_groups + 1)
@@ -242,19 +243,19 @@ function spawn_controller.on_tick(event)
         hist_s.last_1s = curr_stress
         hist_s.v_1s = new_stress_velocity
 
-        if (event.tick % 120 == 0) then
+        if (tick % 120 == 0) then
             hist_a.last_2s = curr_activity
             hist_a.v_2s = new_activity_velocity - hist_a.v_2s
             hist_s.last_2s = curr_stress
             hist_s.v_2s = new_stress_velocity - hist_s.v_2s
 
-            if (event.tick % 240 == 0) then
+            if (tick % 240 == 0) then
                 hist_a.last_4s = curr_activity
                 hist_a.v_4s = new_activity_velocity - hist_a.v_4s
                 hist_s.last_4s = curr_stress
                 hist_s.v_4s = new_stress_velocity - hist_s.v_4s
 
-                if (event.tick % 480 == 0) then
+                if (tick % 480 == 0) then
                     hist_a.last_8s = curr_activity
                     hist_a.v_8s = new_activity_velocity - hist_a.v_8s
                     hist_s.last_8s = curr_stress

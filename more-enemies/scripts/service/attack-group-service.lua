@@ -22,7 +22,6 @@ local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
 
 local Planets = Planets
-local Settings_Map = Settings_Map
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
 
@@ -90,10 +89,6 @@ local math_min = math.min
 local math_random = math.random
 local math_sqrt = math.sqrt
 
-local defines = defines
-local command_attack_area = defines.command.attack_area
-local command_build_base = defines.command.build_base
-
 local Data_Utils = Data_Utils
 local Constants = Constants
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
@@ -108,6 +103,8 @@ local new_Attack_Group_Data = Attack_Group_Data.new
 local Attack_Group_Utils = require("scripts.utils.attack-group-utils")
 local get_enemy = Attack_Group_Utils.get_enemy
 local get_target_entity = Attack_Group_Utils.get_target_entity
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local Requesting_Unit_Group = require("scripts.data.requesting-unit-group")
 local new_Requesting_Unit_Group = Requesting_Unit_Group.new
 local Settings_Service = require("scripts.service.settings-service")
@@ -176,24 +173,23 @@ local function flatcopy_array(src, dst)
     return dst
 end
 
-function attack_group_service.do_random_attack_group(params)
+function attack_group_service.do_random_attack_group(surface_name, tick)
     -- Log.debug("attack_group_service.do_random_attack_group")
     -- Log.info(params)
 
-    if (not params) then return end
-
-    local surface_name = params.surface_name
     if (not surface_name) then return end
+
+    tick = tick or (game or set_game()).tick
 
     local surface = game and get_surface(surface_name) or set_game().get_surface(surface_name)
     if (not surface or not surface.valid) then return end
 
     attack_groups[surface_name] = attack_groups[surface_name] or new_Attack_Group_Data(Attack_Group_Data, { surface_name = surface_name, })
-    attack_groups[surface_name].tick = attack_groups[surface_name].tick or params.tick
+    attack_groups[surface_name].tick = attack_groups[surface_name].tick or tick
     if (    attack_groups[surface_name].tick
-        and attack_groups[surface_name].tick > (params.tick or 0)
+        and attack_groups[surface_name].tick > (tick or 0)
         or  attack_groups[surface_name].sleep_until
-        and attack_groups[surface_name].sleep_until > (params.tick or 0)
+        and attack_groups[surface_name].sleep_until > (tick or 0)
     ) then
         return
     end
@@ -213,7 +209,7 @@ function attack_group_service.do_random_attack_group(params)
         local curr_fail_count = (attack_group.fail_count or 0) + 1
         attack_group.fail_count = curr_fail_count
 
-        attack_group.sleep_until = params.tick + math_min(2 * curr_fail_count, 180)
+        attack_group.sleep_until = tick + math_min(2 * curr_fail_count, 180)
         goto skip
     end
 
@@ -252,16 +248,16 @@ function attack_group_service.do_random_attack_group(params)
         if (    not chunk
             or
                 chunk.timeout
-            and chunk.timeout > params.tick
+            and chunk.timeout > tick
         ) then
             attack_group.invalid_chunks = (attack_group.invalid_chunks or 1) + 1
-            attack_group.tick = (params.tick or 0) + 10 * (attack_group.invalid_chunks ^ 1.75)
+            attack_group.tick = (tick or 0) + 10 * (attack_group.invalid_chunks ^ 1.75)
             return
         else
             attack_group.invalid_chunks = (attack_group.invalid_chunks or 1) ^ 0.6
         end
 
-        local enemies = get_enemy({ surface_name = surface_name, chunk = chunk, tick = params.tick or 0, }) or {}
+        local enemies = get_enemy(surface_name, chunk, tick) or {}
         local num_enemies = #enemies
         if (not enemies[1] or not enemies[1].valid) then return end
 
@@ -300,11 +296,7 @@ function attack_group_service.do_random_attack_group(params)
 
         local limit = math_min(max_unit_group_size, 1 + selected_difficulty.value + selected_difficulty.value * selected_difficulty.radius_modifier * (1 + selected_difficulty.radius_modifier * math_random(1 + selected_difficulty.value)))
 
-        local target_entities = get_target_entity({
-            chunk = chunk,
-            surface = surface,
-            limit = 1 + selected_difficulty.value,
-        }) or {}
+        local target_entities = get_target_entity(surface_name, chunk, 1 + selected_difficulty.value) or {}
 
         local target_entity = nil
         if (#target_entities > 0) then
@@ -336,7 +328,7 @@ function attack_group_service.do_random_attack_group(params)
             surface_name = enemies[1].surface.name,
             start_position = enemies[1].position,
             target_position = target_position,
-            xy = math_floor(enemies[1].position.x / CHUNK) .. FORWARD_SLASH .. math_floor(enemies[1].position.y / CHUNK),
+            xy = pack_coordinates(enemies[1].position.x / CHUNK, enemies[1].position.y / CHUNK),
             limit = limit,
             path_id = path_id,
             path_request = path_request,
@@ -371,7 +363,7 @@ function attack_group_service.do_random_attack_group(params)
     end
     ::skip::
 
-    attack_group.tick = (params.tick or 0) + attack_group.cur_delay
+    attack_group.tick = (tick or 0) + attack_group.cur_delay
 end
 
 function attack_group_service.on_script_path_request_finished(event)
