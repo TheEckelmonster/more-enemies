@@ -60,6 +60,7 @@ To_Set_Game.to_set = {
     require("scripts.controller.planet-controller"),
     require("scripts.controller.spawn-controller"),
     require("scripts.data.leaf-data"),
+    require("scripts.data.quadnode"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.spawn-service"),
