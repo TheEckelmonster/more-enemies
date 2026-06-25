@@ -61,7 +61,8 @@ local Forces = {
 }
 local Valid_Surfaces = Valid_Surfaces
 
-local FORWARD_SLASH = FORWARD_SLASH
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 
 local entity_controller = {}
 entity_controller.name = "entity_controller"
@@ -103,7 +104,7 @@ function entity_controller.on_built_entity(event)
     local chunk = {}
     chunk.x = math_floor(position.x / Constants.CHUNK_SIZE)
     chunk.y = math_floor(position.y / Constants.CHUNK_SIZE)
-    local xy = chunk.x .. FORWARD_SLASH .. chunk.y
+    local xy = pack_coordinates(chunk.x, chunk.y)
     chunk.xy = xy
 
     if (not chunk_map[xy]) then
@@ -171,7 +172,7 @@ function entity_controller.on_mined_entity(event)
     surfaces[surface_name].chunk_map = surfaces[surface_name].chunk_map or {}
     local chunk_map = surfaces[surface_name].chunk_map
 
-    local xy = math_floor(position.x / Constants.CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(position.y / Constants.CHUNK_SIZE)
+    local xy = pack_coordinates(position.x / Constants.CHUNK_SIZE, position.y / Constants.CHUNK_SIZE)
 
     local chunk = chunk_map[xy]
     if (not chunk) then return end
@@ -235,7 +236,7 @@ function entity_controller.on_biter_base_built(event)
 
     local x = math_floor(entity.position.x / Constants.CHUNK_SIZE)
     local y = math_floor(entity.position.y / Constants.CHUNK_SIZE)
-    local xy = x .. FORWARD_SLASH .. y
+    local xy = pack_coordinates(x, y)
 
     local surface_name = surface.name
     surfaces = surfaces or set_game() and surfaces

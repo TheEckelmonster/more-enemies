@@ -169,6 +169,13 @@ local script_raised_built_filter = {}
 Filters.on_entity_died = require("scripts.filters.on-entity-died-filter")
 Filters.script_raised_built = script_raised_built_filter
 
+SHIFT_LOOKUP = {}
+for lvls = 0, Constants.CHUNK_LEVELS, 1 do
+    SHIFT_LOOKUP[lvls] = 2 ^ (Constants.CHUNK_LEVELS - lvls)
+end
+
+require("scripts.to-set-game")
+
 ---
 
 local Custom_Events = Custom_Events
@@ -207,6 +214,7 @@ local to_init_storage = {
     Settings_Service,
 
     require("scripts.data.leaf-data"),
+    require("scripts.data.quadnode"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),
@@ -244,8 +252,6 @@ Event_Handler:register_events({
         func = to_init_storage.reinit_all,
     }
 })
-
-require("scripts.to-set-game")
 
 local globals = {}
 globals.set_num_clones = Set_Num_Clones
