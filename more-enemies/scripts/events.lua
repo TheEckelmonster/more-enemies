@@ -169,6 +169,11 @@ local script_raised_built_filter = {}
 Filters.on_entity_died = require("scripts.filters.on-entity-died-filter")
 Filters.script_raised_built = script_raised_built_filter
 
+SHIFT_LOOKUP = {}
+for lvls = 0, Constants.CHUNK_LEVELS, 1 do
+    SHIFT_LOOKUP[lvls] = 2 ^ (Constants.CHUNK_LEVELS - lvls)
+end
+
 require("scripts.to-set-game")
 
 ---
@@ -209,6 +214,7 @@ local to_init_storage = {
     Settings_Service,
 
     require("scripts.data.leaf-data"),
+    require("scripts.data.quadnode"),
     require("scripts.service.attack-group-service"),
     require("scripts.service.planet-service"),
     require("scripts.service.settings-service"),

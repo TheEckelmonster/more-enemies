@@ -22,14 +22,12 @@ local get_entity_by_unit_number
 local game_print
 local surface_funcs
 
+local Set_Game_Funcs = Set_Game_Funcs
 local Set_Num_Clones = Set_Num_Clones
-local Surfaces = Surfaces
 
 local Stats_Data = require("scripts.data.stats-data")
 local process_event = Stats_Data.process_event
 local new_Stats_Data = Stats_Data.new
-
-local string_find = string.find
 
 local function set_game(event, __game, __storage)
     storage = __storage or _ENV.storage
@@ -105,28 +103,12 @@ local function set_game(event, __game, __storage)
     get_entity_by_unit_number = game.get_entity_by_unit_number
     game_print = game.print
 
-    _ENV.Surface_Funcs = _ENV.Surface_Funcs or {}
-    Surface_Funcs = _ENV.Surface_Funcs
+    Set_Game_Funcs()
+    -- forces = _ENV.Forces
+    -- force_funcs = _ENV.Force_Funcs
 
-    _ENV.Surfaces = _ENV.Surfaces or {}
-    Surfaces = _ENV.Surfaces
-    Surfaces.list = Surfaces.list or {}
-    for name, surface in pairs(game.surfaces) do
-        if (surface.valid and not string_find(surface.name, "platform%-[%d]*")) then
-            Surfaces[name] = surface
-            Surfaces.list[surface.index] = name
-
-            Surface_Funcs[name] = Surface_Funcs[name] or {}
-            Surface_Funcs[name].create_unit_group = Surface_Funcs[name].create_unit_group or surface.create_unit_group
-            Surface_Funcs[name].count_entities_filtered = Surface_Funcs[name].count_entities_filtered or surface.count_entities_filtered
-            Surface_Funcs[name].find_entities_filtered = Surface_Funcs[name].find_entities_filtered or surface.find_entities_filtered
-            Surface_Funcs[name].find_non_colliding_position = Surface_Funcs[name].find_non_colliding_position or surface.find_non_colliding_position
-            Surface_Funcs[name].request_path = Surface_Funcs[name].request_path or surface.request_path
-        else
-            Surfaces[name], Surface_Funcs[name] = nil, nil
-        end
-    end
-    surface_funcs = Surface_Funcs
+    -- planetary_surfaces = _ENV.Surfaces
+    surface_funcs = _ENV.Surface_Funcs
 
     num_clones = Set_Num_Clones()
 
@@ -137,7 +119,6 @@ local ipairs = ipairs
 
 local math_floor = math.floor
 local math_huge = math.huge
-local math_max = math.max
 local math_min = math.min
 local table_insert = table.insert
 local type = type
@@ -155,6 +136,8 @@ local Valid_Surfaces = Valid_Surfaces
 
 local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
 local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
 local Leaf_Data = require("scripts.data.leaf-data")
 local new_Leaf_Data = Leaf_Data.new
 local Quadtree_Service = require("scripts.service.quadtree-service")
@@ -578,7 +561,6 @@ function spawn_service.on_tick(event)
     return not skip and (clone_count < clones_per_tick)
 end
 
-local FORWARD_SLASH = FORWARD_SLASH
 local function find_overlapping_chunks(entity)
     if (not entity or not entity.valid) then return {} end
 
@@ -593,7 +575,7 @@ local function find_overlapping_chunks(entity)
 
     for x = min_chunk_x, max_chunk_x, 1 do
         for y = min_chunk_y, max_chunk_y, 1 do
-            local xy = x .. FORWARD_SLASH .. y
+            local xy = pack_coordinates(x, y)
             if (not seen[xy]) then
                 seen[xy] = 1
                 collides_count = collides_count + 1
@@ -653,7 +635,7 @@ function spawn_service.on_entity_died(event)
     else
         chunk_maps = chunk_maps or set_game() and chunk_maps
         local chunk_map = chunk_maps[surface_name]
-        local xy = math_floor(entity.position.x / CHUNK_SIZE) .. FORWARD_SLASH .. math_floor(entity.position.y / CHUNK_SIZE)
+        local xy = pack_coordinates(entity.position.x / CHUNK_SIZE, entity.position.y / CHUNK_SIZE)
         local chunk = chunk_map[xy]
         if (not chunk) then return end
 
@@ -727,7 +709,7 @@ function spawn_service.on_entity_spawned(event)
     local position = event.spawner.position
     local x = math_floor(position.x / CHUNK_SIZE)
     local y = math_floor(position.y / CHUNK_SIZE)
-    local xy = x .. FORWARD_SLASH .. y
+    local xy = pack_coordinates(x, y)
 
     if (not chunk_maps[surface_name][xy]) then
         local chunk = new_Leaf_Data(Leaf_Data, { x = x, y = y, }, tick)
