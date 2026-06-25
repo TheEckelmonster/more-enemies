@@ -217,9 +217,10 @@ function spawn_service.on_tick(event)
     event = event or { tick = game and game.tick or set_game().tick, }
 
     num_clones = num_clones or set_game() and num_clones
-
     clone_count = 0
-    local idx = event.tick % 60 + 1
+
+    local tick = event.tick
+    local idx = tick % 60 + 1
     if (    pathables[idx]
         and pathables[idx].q
     ) then
@@ -316,7 +317,7 @@ function spawn_service.on_tick(event)
                                 group_queue.q[next_idx] = {
                                     source = GROUP,
                                     unique_id = requesting_unit_group.unique_id,
-                                    tick = event.tick,
+                                    tick = tick,
                                     unit_number = unit_number,
                                     surface_name = requesting_unit_group.surface_name,
                                 }
@@ -436,7 +437,8 @@ function spawn_service.on_tick(event)
     do
         local entity_tbl, entity = nil, nil
         local source, surface_name = nil, nil
-        local clones, group = nil, nil
+        local group = nil
+        local clones_container = nil
 
         local queue_size = entity_queue.last - entity_queue.first
         if (queue_size < 0) then goto skip end
@@ -483,12 +485,6 @@ function spawn_service.on_tick(event)
 
                 if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then goto continue end
 
-                opts = opts or set_game() and opts
-                opts.clone_settings = opts.clone_settings or {}
-                opts.clone_settings.unit = Clone_Unit_Setting[surface_name] or 1
-                opts.clone_settings.unit_group = Clone_Unit_Group_Setting[surface_name] or 1
-                opts.type = entity_tbl.source == GROUP and UNIT_GROUP or UNIT
-
                 entity = game and get_entity_by_unit_number(entity_tbl.unit_number) or set_game().get_entity_by_unit_number(entity_tbl.unit_number)
                 if (not entity or not entity.valid) then goto continue end
                 if (entity_tbl.unique_id and groups[entity_tbl.unique_id]) then
@@ -533,27 +529,26 @@ function spawn_service.on_tick(event)
                     end
                 end
 
-                opts.tick = event.tick
-                opts.surface_name = surface_name
-                clones = clone_entity(entity, opts)
+                if (num_clones[source][surface_name][entity_tbl.name] > (limits[source] and limits[source][surface_name] and (limits[GROUP][surface_name][entity_tbl.name] or limits[GROUP][surface_name].fallback) or 400)) then
+                    clones_container = nil
+                else
+                    clones_container = clone_entity(entity, source, surface_name, Clone_Unit_Setting[surface_name] or 1, Clone_Unit_Group_Setting[surface_name] or 1, tick)
+                end
 
-                if (clones) then
-                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + #clones
-                    clone_count = clone_count + #clones
+                if (clones_container) then
+                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + #clones_container
+                    clone_count = clone_count + #clones_container
                     group = groups[entity_tbl.unique_id] or nil
 
                     if (source and group and group.valid) then
                         local add_member = group.add_member
-                        for k = 1, #clones, 1 do add_member(clones[k].clone) end
+                        for k = 1, #clones_container, 1 do add_member(clones_container[k]) end
 
                         if (unique_ids[entity_tbl.unique_id]) then
-                            local group_data = unique_ids[entity_tbl.unique_id]
-                            if (#(group_data.enemies or {}) > 0) then
-                                unique_ids[entity_tbl.unique_id] = nil
-
-                                attack_groups = attack_groups or set_game() and attack_groups
-                                attack_groups.unit_group_count = (attack_groups.unit_group_count or 1) - 1
-                                if (attack_groups.unit_group_count < 0) then attack_groups.unit_group_count = 0 end
+                            local requesting_unit_group = unique_ids[entity_tbl.unique_id]
+                            if (#(requesting_unit_group.enemies or {}) <= 0 or #group.commandable_members >= requesting_unit_group.limit) then
+                                group.release_from_spawner()
+                                group.start_moving()
                             end
                         end
                     end
@@ -714,6 +709,7 @@ function spawn_service.on_entity_spawned(event)
     -- Log.info(event)
 
     if (not event or not event.tick) then return end
+    local tick = event.tick
 
     local entity = event.entity
     if (not entity or not entity.valid) then return end
@@ -734,7 +730,7 @@ function spawn_service.on_entity_spawned(event)
     local xy = x .. FORWARD_SLASH .. y
 
     if (not chunk_maps[surface_name][xy]) then
-        local chunk = new_Leaf_Data(Leaf_Data, { x = x, y = y, }, event.tick)
+        local chunk = new_Leaf_Data(Leaf_Data, { x = x, y = y, }, tick)
         chunk.xy = xy
         local area = {
             { x = chunk.x * Constants.CHUNK_SIZE, y = chunk.y * Constants.CHUNK_SIZE, },
@@ -794,7 +790,7 @@ function spawn_service.on_entity_spawned(event)
             or  chunk.entity_count > 0
         ) then
             local node = add_node({
-                tick = event.tick or 0,
+                tick = tick or 0,
                 source_chunk = chunk,
                 surface_name = surface_name,
             })
@@ -816,7 +812,7 @@ function spawn_service.on_entity_spawned(event)
     entity_queue.last = next_idx + 1
     entity_queue.q[next_idx] = {
         source = SPAWNED,
-        tick = event.tick,
+        tick = tick,
         unit_number = unit_number,
         surface_name = surface_name,
         type = entity.type or UNIT,
@@ -830,6 +826,7 @@ function spawn_service.entity_built(event)
     -- Log.info(event)
 
     if (not event or not event.tick) then return end
+    local tick = event.tick
 
     local entity = event.entity
     if (not entity or not entity.valid) then return end
@@ -856,7 +853,7 @@ function spawn_service.entity_built(event)
     entity_queue.last = next_idx + 1
     entity_queue.q[next_idx] = {
         source = BUILT,
-        tick = event.tick,
+        tick = tick,
         unit_number = unit_number,
         surface_name = surface_name,
         type = entity.type or UNIT,

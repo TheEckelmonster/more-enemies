@@ -169,6 +169,8 @@ local script_raised_built_filter = {}
 Filters.on_entity_died = require("scripts.filters.on-entity-died-filter")
 Filters.script_raised_built = script_raised_built_filter
 
+require("scripts.to-set-game")
+
 ---
 
 local Custom_Events = Custom_Events
@@ -244,8 +246,6 @@ Event_Handler:register_events({
         func = to_init_storage.reinit_all,
     }
 })
-
-require("scripts.to-set-game")
 
 local globals = {}
 globals.set_num_clones = Set_Num_Clones
