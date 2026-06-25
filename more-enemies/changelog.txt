@@ -1,11 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0
-Date: 2026-06-24
+Date: 2026-06-25
   Changes:
     - Updated to Factorio version 2.1.7
   Bug Fixes:
     - Fixed enemy clones potentially spawning inside/on top of each other
     - Fixed unit-group max size startup setting incorrectly using the runtime setting
+  Misc:
+    - Continuing to optimize where possible
 ---------------------------------------------------------------------------------------------------
 Version: 0.7.10
 Date: 2026-06-02
