@@ -519,13 +519,14 @@ function spawn_service.on_tick(event)
                 end
 
                 if (clones_container) then
-                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + #clones_container
-                    clone_count = clone_count + #clones_container
+                    local num_cloned = #clones_container
+                    clone_count = clone_count + num_cloned
+                    num_clones[source][surface_name][entity_tbl.name] = num_clones[source][surface_name][entity_tbl.name] + num_cloned
                     group = groups[entity_tbl.unique_id] or nil
 
                     if (source and group and group.valid) then
                         local add_member = group.add_member
-                        for k = 1, #clones_container, 1 do add_member(clones_container[k]) end
+                        for k = 1, num_cloned, 1 do add_member(clones_container[k]) end
 
                         if (unique_ids[entity_tbl.unique_id]) then
                             local requesting_unit_group = unique_ids[entity_tbl.unique_id]
