@@ -26,7 +26,6 @@ local function set_game(event, __game, __storage)
     return game
 end
 
-local table_insert = table.insert
 local type = type
 
 local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants

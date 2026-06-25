@@ -1,10 +1,17 @@
 local storage
 local stats_data
+local chunks_arr
+local chunk_maps
+local entity_chunks
+local entity_maps
+local spawner_maps
 local quadtrees
 local surfaces
 local unit_groups
 
 local game
+
+local Set_Game_Funcs = Set_Game_Funcs
 
 local Quadtree = require("scripts.data.quadtree-data")
 local new_Quadtree = Quadtree.new
@@ -18,16 +25,53 @@ local function set_game(event, __game, __storage)
     storage.stats_data = new_Stats_Data(Stats_Data, storage.stats_data) or new_Stats_Data(Stats_Data, { tick = (__game or _ENV.game).tick, })
     stats_data = storage.stats_data
 
-    storage.quadtrees = storage.quadtrees or {}
-    quadtrees = storage.quadtrees
+    storage.chunks_arr = storage.chunks_arr or {}
+    chunks_arr = storage.chunks_arr
+
+    storage.chunk_maps = storage.chunk_maps or {}
+    chunk_maps = storage.chunk_maps
+
+    storage.entity_chunks = storage.entity_chunks or {}
+    entity_chunks = storage.entity_chunks
+
+    storage.entity_maps = storage.entity_maps or {}
+    entity_maps = storage.entity_maps
+
+    storage.spawner_maps = storage.spawner_maps or {}
+    spawner_maps = storage.spawner_maps
 
     storage.surfaces = storage.surfaces or {}
     surfaces = storage.surfaces
+
+    for _, planet in ipairs(Planets or {}) do
+        surfaces[planet] = surfaces[planet] or {}
+        surfaces[planet].chunks = surfaces[planet].chunks or {}
+        surfaces[planet].entity_chunks = surfaces[planet].entity_chunks or {}
+        surfaces[planet].chunk_map = surfaces[planet].chunk_map or {}
+        surfaces[planet].entity_maps = surfaces[planet].entity_maps or {}
+        surfaces[planet].spawner_map = surfaces[planet].spawner_map or {}
+
+        chunks_arr[planet] = chunks_arr[planet] or surfaces[planet].chunks
+        entity_chunks[planet] = entity_chunks[planet] or surfaces[planet].entity_chunks
+        chunk_maps[planet] = chunk_maps[planet] or surfaces[planet].chunk_map
+        entity_maps[planet] = entity_maps[planet] or surfaces[planet].entity_maps
+        spawner_maps[planet] = spawner_maps[planet] or surfaces[planet].spawner_maps
+    end
+
+    storage.quadtrees = storage.quadtrees or {}
+    quadtrees = storage.quadtrees
 
     storage.unit_groups = storage.unit_groups or {}
     unit_groups = storage.unit_groups
 
     game = __game or _ENV.game
+
+    Set_Game_Funcs()
+    -- forces = _ENV.Forces
+    -- force_funcs = _ENV.Force_Funcs
+
+    -- planetary_surfaces = _ENV.Surfaces
+    -- surface_funcs = _ENV.Surface_Funcs
 
     return game
 end
@@ -39,10 +83,18 @@ local math_min = math.min
 local math_random =  math.random
 local math_sqrt = math.sqrt
 
+local UINT16 = 2^16-1
+
 local Log = Log
 
 local Constants = Constants or require("scripts.constants.constants")
 
+local Coordinate_Utils = require("scripts.utils.coordinate-utils")
+local pack_coordinates = Coordinate_Utils.pack
+local Leaf_Data = require("scripts.data.leaf-data")
+local new_Leaf_Data = Leaf_Data.new
+local Quad_Meta_Data = Quad_Meta_Data or require("scripts.data.quad-meta-data")
+local new_template = Quad_Meta_Data.new_template
 local Quadnode = require("scripts.data.quadnode")
 local new_Quadnode = Quadnode.new
 
@@ -50,6 +102,9 @@ local max_unit_groups = Data_Utils.get_runtime_global_setting({ setting = Runtim
 
 local HALF_MAP_SIZE = Constants.HALF_MAP_SIZE
 local CHUNK_LEVELS = Constants.CHUNK_LEVELS
+local MAP_SIZE = 2*HALF_MAP_SIZE
+
+local SHIFT_LOOKUP = SHIFT_LOOKUP
 
 local quadtree_service = {}
 quadtree_service.name = "quadtree_service"
@@ -57,6 +112,8 @@ quadtree_service.set_game = set_game
 
 local CHUNK_SIZE = Constants.CHUNK_SIZE
 local BASE_SEARCH_RADIUS = 1024 * CHUNK_SIZE
+
+local NW, NE, SW, SE = "nw", "ne", "sw", "se"
 
 function quadtree_service.add_node(params)
     if (not params) then return end
@@ -67,32 +124,54 @@ function quadtree_service.add_node(params)
     if (not params.surface_name) then return end
     if (not params.source_chunk) then return end
 
+    local tick = params.tick or set_game().tick
+
     quadtrees = quadtrees or set_game() and quadtrees
 
     quadtrees[params.surface_name] = quadtrees[params.surface_name] or new_Quadtree(Quadtree, { surface_name = params.surface_name, })
     local quadtree = quadtrees[params.surface_name]
 
-    local source_chunk = params.source_chunk
-
-    quadtree.base = quadtree.base or new_Quadnode(Quadnode, { count = 0, })
+    quadtree.base = quadtree.base or new_Quadnode(Quadnode, {
+        size = MAP_SIZE,
+        node_level = 0,
+        x = 0,
+        y = 0,
+        count = 0,
+        meta = new_template(Quad_Meta_Data, tick),
+    }, tick)
     local base = params.base or quadtree.base
     local parent_node = params.parent_node or base
-    if (parent_node.size and parent_node.size < 1) then return end
 
     local start_position = params.start_position or { x = 0, y = 0, }
     local direction = ""
 
+    local source_chunk = params.source_chunk
+    source_chunk.xy = source_chunk.xy or pack_coordinates(source_chunk.x, source_chunk.y)
+
     if ((source_chunk.x + 0.5) < start_position.x) then
-        direction = ((source_chunk.y + 0.5) < start_position.y) and "nw" or "sw"
+        direction = ((source_chunk.y + 0.5) < start_position.y) and NW or SW
     else
-        direction = ((source_chunk.y + 0.5) < start_position.y) and "ne" or "se"
+        direction = ((source_chunk.y + 0.5) < start_position.y) and NE or SE
     end
 
-    if (parent_node[direction] and parent_node.size > 1) then
+    chunk_maps = chunk_maps or set_game() and chunk_maps
+    chunk_maps[params.surface_name] = chunk_maps[params.surface_name] or {}
+    local chunk_map = chunk_maps[params.surface_name]
+
+    chunk_map[source_chunk.xy] = chunk_map[source_chunk.xy] or new_Leaf_Data(Leaf_Data, source_chunk, tick)
+    source_chunk = chunk_map[source_chunk.xy]
+    source_chunk.meta = source_chunk.meta or new_template(Quad_Meta_Data, tick)
+    local c_meta = source_chunk.meta
+    c_meta.entity_count = c_meta.entity_count or source_chunk.entity_count
+    c_meta.spawner_count = c_meta.spawner_count or source_chunk.spawner_count
+
+    if (parent_node[direction] and parent_node.size >= CHUNK_SIZE) then
         local next_base = parent_node
         local target_node = parent_node[direction]
 
-        local shift_factor = 2 ^ (CHUNK_LEVELS - target_node.node_level)
+        target_node.parent_node = target_node.parent_node or parent_node
+
+        local shift_factor = SHIFT_LOOKUP[target_node.node_level]
         local pos = {
             x = math_floor(target_node.x * shift_factor) or 0,
             y = math_floor(target_node.y * shift_factor) or 0,
@@ -106,35 +185,63 @@ function quadtree_service.add_node(params)
                 or  historical_chunk.x == source_chunk.x
                 and historical_chunk.y == source_chunk.y
             ) then
-                return
+                if (not chunk_map[historical_chunk.xy] or chunk_map[historical_chunk.xy] ~= historical_chunk) then
+                    target_node.chunk = new_Leaf_Data(Leaf_Data, historical_chunk, tick)
+                    target_node.chunk.meta = new_template(Quad_Meta_Data, tick)
+                    chunk_map[historical_chunk.xy] = target_node.chunk
+                end
+                target_node.parent_node = target_node.parent_node or parent_node
+
+                historical_chunk = chunk_map[historical_chunk.xy]
+                historical_chunk.parent_node = target_node
+                historical_chunk.meta = historical_chunk.meta or new_template(Quad_Meta_Data, tick)
+
+                source_chunk.parent_node = target_node
+
+                return target_node, historical_chunk
             end
 
             if ((historical_chunk.x + 0.5) < pos.x) then
-                new_direction = ((historical_chunk.y + 0.5) < pos.y) and "nw" or "sw"
+                new_direction = ((historical_chunk.y + 0.5) < pos.y) and NW or SW
             else
-                new_direction = ((historical_chunk.y + 0.5) < pos.y) and "ne" or "se"
+                new_direction = ((historical_chunk.y + 0.5) < pos.y) and NE or SE
             end
 
             local next_level = target_node.node_level + 1
             if (next_level <= CHUNK_LEVELS) then
-                local next_shift = 2 ^ (CHUNK_LEVELS - next_level)
+                local next_shift = SHIFT_LOOKUP[next_level]
 
                 target_node[new_direction] = new_Quadnode(Quadnode, {
+                    parent_node = target_node,
                     size = target_node.size / 2,
                     node_level = next_level,
                     x = math_floor(historical_chunk.x / next_shift) + 0.5,
                     y = math_floor(historical_chunk.y / next_shift) + 0.5,
-                })
+                    xy = pack_coordinates(math_floor(historical_chunk.x / next_shift), math_floor(historical_chunk.y / next_shift)),
+                    meta = new_template(Quad_Meta_Data, tick),
+                }, tick)
+
+                if (not chunk_map[historical_chunk.xy] or chunk_map[historical_chunk.xy] ~= historical_chunk) then
+                    historical_chunk.meta = new_template(Quad_Meta_Data, tick)
+                    target_node.chunk = new_Leaf_Data(Leaf_Data, historical_chunk, tick)
+                    chunk_map[historical_chunk.xy] = target_node.chunk
+                end
+                historical_chunk = chunk_map[historical_chunk.xy]
+
                 target_node[new_direction].chunk = historical_chunk
-                target_node.count = math_max((target_node.count or 0) + 1, 0)
+
+                historical_chunk.parent_node = target_node[new_direction]
+
+                base.count = (quadtree.base.count or 0) + 1
+                target_node.count = (target_node.count or 0) + 1
                 target_node.chunk = nil
             end
         end
 
-        target_node.count = math_max((target_node.count or 0) + 1, 0)
+        target_node.count = (target_node.count or 0) + 1
 
-        quadtree_service.add_node({
-            tick = params.tick,
+        return quadtree_service.add_node({
+            tick = tick,
             surface_name = params.surface_name,
             source_chunk = source_chunk,
             parent_node = target_node,
@@ -143,20 +250,35 @@ function quadtree_service.add_node(params)
             depth = params.depth + 1
         })
 
-        return
     else
         local next_level = parent_node.node_level + 1
         if (next_level <= CHUNK_LEVELS) then
-            local next_shift = 2 ^ (CHUNK_LEVELS - next_level)
+            local next_shift = SHIFT_LOOKUP[next_level]
 
             parent_node[direction] = new_Quadnode(Quadnode, {
+                parent_node = parent_node,
                 size = (parent_node.size or HALF_MAP_SIZE) / 2,
                 node_level = next_level,
                 x = math_floor(source_chunk.x / next_shift) + 0.5,
                 y = math_floor(source_chunk.y / next_shift) + 0.5,
-            })
-            parent_node[direction].chunk = source_chunk
+                xy = pack_coordinates(math_floor(source_chunk.x / next_shift), math_floor(source_chunk.y / next_shift)),
+                meta = new_template(Quad_Meta_Data, tick),
+            }, tick)
+
+            if (not chunk_map[source_chunk.xy] or chunk_map[source_chunk.xy] ~= source_chunk) then
+                parent_node[direction].chunk = new_Leaf_Data(Leaf_Data, source_chunk, tick)
+                chunk_map[source_chunk.xy] = parent_node[direction].chunk
+            end
+            source_chunk = chunk_map[source_chunk.xy]
+
+            quadtree.base.count = (quadtree.base.count or 0) + 1
+            parent_node.count = (parent_node.count or 0) + 1
             parent_node.chunk = nil
+
+            source_chunk.parent_node = parent_node[direction]
+            parent_node[direction].chunk = source_chunk
+
+            return parent_node[direction], source_chunk
         end
     end
 end
@@ -172,7 +294,7 @@ local function is_empty_node(node)
         )
 end
 
-function quadtree_service.find_closest(params)
+function quadtree_service.find_closest_spawners(params)
     if (not params) then return end
     if (not params.surface_name) then return end
     if (not params.target_chunk) then return end
@@ -185,10 +307,14 @@ function quadtree_service.find_closest(params)
     -- Parameters
     local target_chunk = params.target_chunk
 
-    target_chunk.meta = target_chunk.meta or {}
+    target_chunk.meta = target_chunk.meta or new_template(Quad_Meta_Data, params.tick)
     local meta = target_chunk.meta
 
     -- Optional parameters
+    local limit = params.limit or nil
+    local spawner_pool = params.spawner_pool or nil
+    local spawner_distance_map = nil
+
     local max_distance = params.max_distance
     local greedy = params.greedy
     local strictness = params.strictness
@@ -275,67 +401,123 @@ function quadtree_service.find_closest(params)
     meta.last_radius = max_distance
 
     local best_distance = max_distance
+    local worst_valid_distance = max_distance
     local best_target = nil
 
     local math_max = math_max
     local math_sqrt = math_sqrt
     local CHUNK_LEVELS = CHUNK_LEVELS
+    local CHUNK_SIZE = CHUNK_SIZE or 32
+    local math_huge = math_huge
 
-    local function search(node)
-        if (is_empty_node(node) or not node.node_level or node.node_level > CHUNK_LEVELS) then return end
+    local stack = params.stack or { quadtree.base, }
+    local stack_ptr = stack and #stack or 0
 
-        local shift = 2 ^ (CHUNK_LEVELS - (node.node_level or 0))
+    local iteration_limit = params.iteration_limit or UINT16
+    local iterations = 0
+    local completed = true
+    while stack_ptr > 0 do
+        if (iterations > iteration_limit) then
+            completed = false
+            break
+        end
+        iterations = iterations + 1
 
-        local min_x, min_y = node.x - shift, node.y - shift
-        local max_x, max_y = node.x + shift, node.y + shift
-        local dx, dy = math_max(min_x - target_chunk.x, 0, target_chunk.x - max_x), math_max(min_y - target_chunk.y, 0, target_chunk.y - max_y)
+        local node = stack[stack_ptr]
+        stack_ptr = stack_ptr - 1
+        if (node and not is_empty_node(node)) then
+            local node_level = node.node_level or 0
+            if (node_level <= CHUNK_LEVELS) then
+                local shift = SHIFT_LOOKUP[node_level]
 
-        local delta = math_sqrt(dx * dx + dy * dy)
-        if (delta >= best_distance) then return end
+                local min_x, min_y = node.x - shift, node.y - shift
+                local max_x, max_y = node.x + shift, node.y + shift
+                local dx, dy = math_max(min_x - target_chunk.x, 0, target_chunk.x - max_x), math_max(min_y - target_chunk.y, 0, target_chunk.y - max_y)
 
-        local chunk = node.chunk
-        if (chunk) then
-            local distance = math_huge
-            distance = math_sqrt((chunk.x - target_chunk.x)^2 + (chunk.y - target_chunk.y)^2)
-            if (distance < best_distance) then
-                best_target = chunk
-                best_distance = distance
+                local delta = math_sqrt(dx * dx + dy * dy)
+                local delta_threshold = limit and worst_valid_distance or best_distance
+                if (delta < delta_threshold) then
+                    local chunk = node.chunk
+                    if (chunk) then
+                        chunk.meta = chunk.meta or new_template(Quad_Meta_Data, params.tick)
+                        if (chunk.meta.spawner_count > 0) then
+                            local distance = math_huge
+                            distance = math_sqrt(((chunk.x - target_chunk.x) * CHUNK_SIZE)^2 + ((chunk.y - target_chunk.y) * CHUNK_SIZE)^2)
+                            if (limit) then
+                                spawner_pool = spawner_pool or {}
+                                spawner_distance_map = spawner_distance_map or {}
+
+                                local pool_count = #spawner_pool
+
+                                if (pool_count < limit or distance < worst_valid_distance) then
+                                    spawner_distance_map[chunk.xy] = distance
+
+                                    local insert_pos = pool_count + 1
+                                    while insert_pos > 1 and distance < spawner_distance_map[spawner_pool[insert_pos - 1].xy] do
+                                        spawner_pool[insert_pos] = spawner_pool[insert_pos - 1]
+                                        insert_pos = insert_pos - 1
+                                    end
+                                    spawner_pool[insert_pos] = chunk
+                                    pool_count = pool_count + 1
+
+                                    if (pool_count > limit) then
+                                        spawner_pool[pool_count] = nil
+                                        pool_count = pool_count - 1
+                                        worst_valid_distance = spawner_distance_map[spawner_pool[pool_count].xy]
+                                    elseif (pool_count == limit) then
+                                        worst_valid_distance = spawner_distance_map[spawner_pool[pool_count].xy]
+                                    else
+                                        worst_valid_distance = max_distance
+                                    end
+
+                                    best_target = spawner_pool[1]
+                                    best_distance = spawner_distance_map[best_target.xy]
+
+                                    if (greedy) then break end
+                                end
+                            elseif (distance < best_distance) then
+                                best_target = chunk
+                                best_distance = distance
+                                worst_valid_distance = distance
+                                if (greedy) then break end
+                            end
+                        end
+                    end
+
+                    local north = (target_chunk.y + 0.5) < (node.y * shift)
+                    local west  = (target_chunk.x + 0.5) < (node.x * shift)
+
+                    if (north) then
+                        if (west) then
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.se
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.sw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.ne
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.nw
+                        else
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.sw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.se
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.nw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.ne
+                        end
+                    else
+                        if (west) then
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.ne
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.nw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.se
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.sw
+                        else
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.nw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.ne
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.sw
+                            stack_ptr = stack_ptr + 1; stack[stack_ptr] = node.se
+                        end
+                    end
+                end
             end
         end
-
-        local north = (target_chunk.y + 0.5) < (node.y * shift)
-        local west  = (target_chunk.x + 0.5) < (node.x * shift)
-
-        if (north) then
-            if (west) then
-                if (greedy and search(node.nw)) then return best_target elseif (not greedy) then search(node.nw) end
-                if (greedy and search(node.ne)) then return best_target elseif (not greedy) then search(node.ne) end
-                if (greedy and search(node.sw)) then return best_target elseif (not greedy) then search(node.sw) end
-                if (greedy and search(node.se)) then return best_target elseif (not greedy) then search(node.se) end
-            else
-                if (greedy and search(node.ne)) then return best_target elseif (not greedy) then search(node.ne) end
-                if (greedy and search(node.nw)) then return best_target elseif (not greedy) then search(node.nw) end
-                if (greedy and search(node.se)) then return best_target elseif (not greedy) then search(node.se) end
-                if (greedy and search(node.sw)) then return best_target elseif (not greedy) then search(node.sw) end
-            end
-        else
-            if (west) then
-                if (greedy and search(node.sw)) then return best_target elseif (not greedy) then search(node.sw) end
-                if (greedy and search(node.se)) then return best_target elseif (not greedy) then search(node.se) end
-                if (greedy and search(node.nw)) then return best_target elseif (not greedy) then search(node.nw) end
-                if (greedy and search(node.ne)) then return best_target elseif (not greedy) then search(node.ne) end
-            else
-                if (greedy and search(node.se)) then return best_target elseif (not greedy) then search(node.se) end
-                if (greedy and search(node.sw)) then return best_target elseif (not greedy) then search(node.sw) end
-                if (greedy and search(node.ne)) then return best_target elseif (not greedy) then search(node.ne) end
-                if (greedy and search(node.nw)) then return best_target elseif (not greedy) then search(node.nw) end
-            end
-        end
-
-        return best_target
     end
 
-    return search(quadtree.base)
+    return spawner_pool or best_target, stack, stack_ptr, completed
 end
 
 local function find_leaf_node(node)
@@ -374,9 +556,9 @@ function quadtree_service.remove_node(params)
 
         local direction = ""
         if ((source_chunk.x + 0.5) < start_pos.x) then
-            direction = ((source_chunk.y + 0.5) < start_pos.y) and "nw" or "sw"
+            direction = ((source_chunk.y + 0.5) < start_pos.y) and NW or SW
         else
-            direction = ((source_chunk.y + 0.5) < start_pos.y) and "ne" or "se"
+            direction = ((source_chunk.y + 0.5) < start_pos.y) and NE or SE
         end
 
         local target_node = parent_node[direction]
@@ -386,13 +568,16 @@ function quadtree_service.remove_node(params)
             if (target_node.chunk.x == source_chunk.x and target_node.chunk.y == source_chunk.y) then
                 parent_node[direction] = nil
                 parent_node.count = math_max((parent_node.count or 1) - 1, 0)
+
+                quadtree.base.count = math_max((quadtree.base.count or 1) - 1, 0)
+
                 return true
             end
 
             return
         end
 
-        local shift_factor = 2 ^ (CHUNK_LEVELS - (target_node.node_level or CHUNK_LEVELS))
+        local shift_factor = SHIFT_LOOKUP[target_node.node_level or CHUNK_LEVELS]
         local node_pos = {
             x = math_floor(target_node.x * shift_factor) or 0,
             y = math_floor(target_node.y * shift_factor) or 0,
@@ -403,14 +588,17 @@ function quadtree_service.remove_node(params)
             if (is_empty_node(target_node)) then parent_node[direction] = nil end
 
             parent_node.count = 0
-            if (parent_node.nw) then parent_node.count = math_max((parent_node.count or 0), 0) + (parent_node.nw and parent_node.nw.chunk and 1 or parent_node.nw.count or 0) end
-            if (parent_node.ne) then parent_node.count = math_max((parent_node.count or 0), 0) + (parent_node.ne and parent_node.ne.chunk and 1 or parent_node.ne.count or 0) end
-            if (parent_node.sw) then parent_node.count = math_max((parent_node.count or 0), 0) + (parent_node.sw and parent_node.sw.chunk and 1 or parent_node.sw.count or 0) end
-            if (parent_node.se) then parent_node.count = math_max((parent_node.count or 0), 0) + (parent_node.se and parent_node.se.chunk and 1 or parent_node.se.count or 0) end
+            local p_nw, p_ne, p_sw, p_se = parent_node.nw, parent_node.ne, parent_node.sw, parent_node.se
+
+            if (p_nw) then parent_node.count = math_max((parent_node.count or 0), 0) + (p_nw.chunk and 1 or p_nw.count or 0) end
+            if (p_ne) then parent_node.count = math_max((parent_node.count or 0), 0) + (p_ne.chunk and 1 or p_ne.count or 0) end
+            if (p_sw) then parent_node.count = math_max((parent_node.count or 0), 0) + (p_sw.chunk and 1 or p_sw.count or 0) end
+            if (p_se) then parent_node.count = math_max((parent_node.count or 0), 0) + (p_se.chunk and 1 or p_se.count or 0) end
 
             if (parent_node.count == 1) then
                 local leaf_node = find_leaf_node(parent_node)
                 if (leaf_node and leaf_node.chunk) then
+                    leaf_node.chunk.parent_node = parent_node
                     parent_node.chunk = leaf_node.chunk
                     parent_node.count = nil
                     parent_node.nw, parent_node.ne, parent_node.sw, parent_node.se = nil, nil, nil, nil
@@ -423,7 +611,7 @@ function quadtree_service.remove_node(params)
 
     remove(quadtree.base, params.source_chunk, root)
 
-    if (is_empty_node(quadtree.base)) then quadtree.base = new_Quadnode(Quadnode, { count = 0, }) end
+    if (is_empty_node(quadtree.base)) then quadtree.base = new_Quadnode(Quadnode, { count = 0, }, params.tick) end
 end
 
 local update_settings = {}
