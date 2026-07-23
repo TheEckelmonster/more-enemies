@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 2026-07-23
+  Bug Fixes:
+    - Fixed startup error related to the nauvis_biter_base_laser_defense menu-simulation when DamageIndicator was present (thanks to Not Stir-fried Aliens for the report!)
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 2026-06-25
   Changes:
