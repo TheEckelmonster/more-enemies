@@ -1,6 +1,6 @@
 # Name and version of your mod
 $mod = "more-enemies"
-$version = "1.0.0"
+$version = "1.0.1"
 
 $7ZipPath = "D:/7-Zip/7z.exe"
 
