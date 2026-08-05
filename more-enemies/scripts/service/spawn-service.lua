@@ -147,6 +147,7 @@ local new_Simple_Queue = Simple_Queue.new
 local Settings_Utils = require("scripts.utils.settings-utils")
 local Spawn_Utils = require("scripts.utils.spawn-utils")
 local clone_entity = Spawn_Utils.clone_entity
+local Array_Utils = require("scripts.utils.array-utils")
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
 
@@ -649,28 +650,7 @@ function spawn_service.on_entity_died(event)
             surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
             local chunks = surfaces[surface_name].chunks
 
-            if (chunk.i) then
-                local count = #chunks
-                local temp = chunks[count]
-
-                chunks[chunk.i] = temp
-                chunks[count] = nil
-
-                if (temp) then temp.i = chunk.i end
-            else
-                local count = #chunks
-                for i = 1, count, 1 do chunks[i].i = i end
-
-                chunk = chunk_map[xy]
-                if (chunk and chunk.i) then
-                    local temp = chunks[count]
-
-                    chunks[chunk.i] = temp
-                    chunks[count] = nil
-
-                    if (temp) then temp.i = chunk.i end
-                end
-            end
+            Array_Utils.swap_remove_chunk(chunk, chunks)
 
             entity_maps = entity_maps or set_game() and entity_maps
             local entity_map = entity_maps[surface_name]

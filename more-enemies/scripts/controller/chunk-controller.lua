@@ -66,6 +66,7 @@ local Quadtree_Service = require("scripts.service.quadtree-service")
 local add_node = Quadtree_Service.add_node
 local remove_node = Quadtree_Service.remove_node
 local Settings_Utils = require("scripts.utils.settings-utils")
+local Array_Utils = require("scripts.utils.array-utils")
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
 
@@ -173,9 +174,9 @@ function chunk_controller.on_chunk_deleted(event)
     process_event(stats_data, event.name, event.tick)
 
     if (not event.positions or #event.positions < 1) then return end
-    if (not event.surfce_index or event.surfce_index < 1) then return end
+    if (not event.surface_index or event.surface_index < 1) then return end
 
-    local surface = game.get_surface(event.surfce_index)
+    local surface = game.get_surface(event.surface_index)
     if (not surface or not surface.valid) then return end
     local surface_name = surface.name
 
@@ -198,29 +199,7 @@ function chunk_controller.on_chunk_deleted(event)
         for j, chunk in ipairs(chunks) do
             chunk.xy = chunk.xy or pack_coordinates(chunk.x, chunk.y)
             if (chunk.xy == xy) then
-                if (chunk.i) then
-                    local count = #chunks
-                    local temp = chunks[count]
-
-                    chunks[chunk.i] = temp
-                    chunks[count] = nil
-
-                    if (temp) then temp.i = chunk.i end
-                else
-                    local count = #chunks
-                    for i = 1, count, 1 do chunks[i].i = i end
-
-                    local chunk = chunk_map[xy]
-                    if (chunk and chunk.i) then
-                        local temp = chunks[count]
-
-                        chunks[chunk.i] = temp
-                        chunks[count] = nil
-
-                        if (temp) then temp.i = chunk.i end
-                    end
-                end
-
+                Array_Utils.swap_remove_chunk(chunk, chunks)
                 chunk_map[xy] = nil
                 break
             end
