@@ -64,6 +64,8 @@ local Valid_Surfaces = Valid_Surfaces
 local Coordinate_Utils = require("scripts.utils.coordinate-utils")
 local pack_coordinates = Coordinate_Utils.pack
 
+local Array_Utils = require("scripts.utils.array-utils")
+
 local entity_controller = {}
 entity_controller.name = "entity_controller"
 entity_controller.set_game = set_game
@@ -180,29 +182,7 @@ function entity_controller.on_mined_entity(event)
     chunk.entity_count = chunk.entity_count - 1
 
     if (chunk.entity_count < 1) then
-        if (chunk.i) then
-            local count = #chunks
-            local temp = chunks[count]
-
-            chunks[chunk.i] = temp
-            chunks[count] = nil
-
-            if (temp) then temp.i = chunk.i end
-        else
-            local count = #chunks
-            for i = 1, count, 1 do chunks[i].i = i end
-
-            local chunk = chunk_map[xy]
-            if (chunk and chunk.i) then
-                local temp = chunks[count]
-
-                chunks[chunk.i] = temp
-                chunks[count] = nil
-
-                if (temp) then temp.i = chunk.i end
-            end
-        end
-
+        Array_Utils.swap_remove_chunk(chunk, chunks)
         chunk_map[xy] = nil
     end
 end
