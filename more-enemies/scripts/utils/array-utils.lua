@@ -1,8 +1,8 @@
-local array_util = {}
+local array_utils = {}
+array_utils.name = "array_utils"
 
-local function swap_remove_chunk(chunk, chunks)
+function array_utils.swap_remove_chunk(chunk, chunks)
     if (chunk.i) then
-        -- fast path as chunk has stored its index
         local count = #chunks
         local temp = chunks[count]
 
@@ -10,29 +10,40 @@ local function swap_remove_chunk(chunk, chunks)
         chunks[count] = nil
 
         if (temp) then temp.i = chunk.i end
+        chunk.i = nil
     else
-        -- slow path, scan through all chunks and re assert indexes
         local count = #chunks
-        for i = 1, count, 1 do
+        local limit, loops = count * 2, 0
+        local idx, i = 0, 0
+        while idx < count do
+            loops, i = loops + 1, i + 1
+            if (loops > limit) then break end
             local entry = chunks[i]
             if (entry) then
-                entry.i = i
+                idx = idx + 1
+                entry.i = idx
+                if (idx ~= i) then
+                    chunks[idx] = entry
+                    chunks[i] = nil
+                end
             else
-                Log.warn("chunks array has nil slot")
+                chunks[i] = chunks[count]
+                chunks[count] = nil
+                count, i = count - 1, i - 1
             end
         end
 
         if (chunk and chunk.i) then
+            count = #chunks
             local temp = chunks[count]
 
             chunks[chunk.i] = temp
             chunks[count] = nil
 
             if (temp) then temp.i = chunk.i end
+            chunk.i = nil
         end
     end
 end
 
-array_util.swap_remove_chunk = swap_remove_chunk
-
-return array_util;
+return array_utils

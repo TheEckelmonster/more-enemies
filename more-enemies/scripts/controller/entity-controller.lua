@@ -65,6 +65,7 @@ local Coordinate_Utils = require("scripts.utils.coordinate-utils")
 local pack_coordinates = Coordinate_Utils.pack
 
 local Array_Utils = require("scripts.utils.array-utils")
+local swap_remove_chunk = Array_Utils.swap_remove_chunk
 
 local entity_controller = {}
 entity_controller.name = "entity_controller"
@@ -181,8 +182,8 @@ function entity_controller.on_mined_entity(event)
     chunk.entity_count = chunk.entity_count or 1
     chunk.entity_count = chunk.entity_count - 1
 
-    if (chunk.entity_count < 1) then
-        Array_Utils.swap_remove_chunk(chunk, chunks)
+    if (chunk.entity_count < 1 and (chunk.spawner_count or 0) < 1) then
+        swap_remove_chunk(chunk, chunks)
         chunk_map[xy] = nil
     end
 end

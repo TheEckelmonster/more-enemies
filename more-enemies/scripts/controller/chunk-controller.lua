@@ -67,6 +67,7 @@ local add_node = Quadtree_Service.add_node
 local remove_node = Quadtree_Service.remove_node
 local Settings_Utils = require("scripts.utils.settings-utils")
 local Array_Utils = require("scripts.utils.array-utils")
+local swap_remove_chunk = Array_Utils.swap_remove_chunk
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
 
@@ -199,7 +200,7 @@ function chunk_controller.on_chunk_deleted(event)
         for j, chunk in ipairs(chunks) do
             chunk.xy = chunk.xy or pack_coordinates(chunk.x, chunk.y)
             if (chunk.xy == xy) then
-                Array_Utils.swap_remove_chunk(chunk, chunks)
+                swap_remove_chunk(chunk, chunks)
                 chunk_map[xy] = nil
                 break
             end

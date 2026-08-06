@@ -120,6 +120,7 @@ local ipairs = ipairs
 local math_floor = math.floor
 local math_huge = math.huge
 local math_min = math.min
+local string_find = string.find
 local table_insert = table.insert
 local type = type
 
@@ -134,6 +135,8 @@ local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants
 local Valid_Sources = Valid_Sources
 local Valid_Surfaces = Valid_Surfaces
 
+local Array_Utils = require("scripts.utils.array-utils")
+local swap_remove_chunk = Array_Utils.swap_remove_chunk
 local Attack_Group_Constants = require("scripts.constants.attack-group-constants")
 local attack_group_type_blacklist = Attack_Group_Constants.type_blacklist
 local Coordinate_Utils = require("scripts.utils.coordinate-utils")
@@ -147,7 +150,6 @@ local new_Simple_Queue = Simple_Queue.new
 local Settings_Utils = require("scripts.utils.settings-utils")
 local Spawn_Utils = require("scripts.utils.spawn-utils")
 local clone_entity = Spawn_Utils.clone_entity
-local Array_Utils = require("scripts.utils.array-utils")
 
 local blacklist_names = Settings_Utils.get_attack_group_blacklist_names()
 
@@ -589,6 +591,7 @@ local function find_overlapping_chunks(entity)
     return collides
 end
 
+local NEUTRAL = NEUTRAL
 local SPIDER_UNIT = SPIDER_UNIT
 local UNIT_SPAWNER = UNIT_SPAWNER
 local entity_types = {
@@ -607,6 +610,9 @@ function spawn_service.on_entity_died(event)
 
     local force = entity.force
     if (not force or not force.valid) then return end
+
+    local force_name = force.name
+    if (force_name == NEUTRAL) then return end
 
     if (force.name == ENEMY) then
         if (not entity_types[entity.type]) then return end
@@ -634,7 +640,7 @@ function spawn_service.on_entity_died(event)
                 end
             end
         end
-    else
+    elseif (force_name ~= NEUTRAL) then
         chunk_maps = chunk_maps or set_game() and chunk_maps
         local chunk_map = chunk_maps[surface_name]
         local xy = pack_coordinates(entity.position.x / CHUNK_SIZE, entity.position.y / CHUNK_SIZE)
@@ -644,13 +650,13 @@ function spawn_service.on_entity_died(event)
         chunk.entity_count = chunk.entity_count or 1
         chunk.entity_count = chunk.entity_count - 1
 
-        if (chunk.entity_count < 1) then
+        if (chunk.entity_count < 1 and (chunk.spawner_count or 0) < 1) then
             surfaces = surfaces or set_game() and surfaces
             surfaces[surface_name] = surfaces[surface_name] or {}
             surfaces[surface_name].chunks = surfaces[surface_name].chunks or {}
             local chunks = surfaces[surface_name].chunks
 
-            Array_Utils.swap_remove_chunk(chunk, chunks)
+            swap_remove_chunk(chunk, chunks)
 
             entity_maps = entity_maps or set_game() and entity_maps
             local entity_map = entity_maps[surface_name]
@@ -660,7 +666,6 @@ function spawn_service.on_entity_died(event)
         end
     end
 end
-
 
 local unit_spawner_type_tbl = { UNIT_SPAWNER, }
 local enemy_force_tbl = { ENEMY, }
