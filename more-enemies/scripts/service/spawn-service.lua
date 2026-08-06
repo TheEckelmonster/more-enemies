@@ -614,7 +614,7 @@ function spawn_service.on_entity_died(event)
     local force_name = force.name
     if (force_name == NEUTRAL) then return end
 
-    if (force.name == ENEMY) then
+    if (force_name == ENEMY) then
         if (not entity_types[entity.type]) then return end
 
         if (entity.type == UNIT_SPAWNER) then
