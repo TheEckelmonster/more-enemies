@@ -124,10 +124,13 @@ entity_white_list["fluid-wagon"] = true
 entity_white_list["locomotive"] = true
 entity_white_list["spider-vehicle"] = true
 entity_white_list["wall"] = true
-entity_white_list["fish"] = true
+
+entity_black_list["fish"] = true
+
 entity_white_list["simple-entity"] = true
-entity_white_list["tree"] = true
-entity_white_list["plant"] = true
+
+entity_black_list["tree"] = true
+entity_black_list["plant"] = true
 
 entity_black_list["explosion"] = true
 entity_black_list["fire"] = true

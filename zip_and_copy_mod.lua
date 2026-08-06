@@ -95,11 +95,15 @@ local use_custom_dest = do_experimental and tostring(do_experimental)
 local launch_toggle   = do_auto_launch and tostring(do_auto_launch)
                     or  get_json_value(presumed_manifest, "launch_game_after_build", true)
 
+local dev_path        = get_json_value(presumed_manifest, "dev_path")
+local seven_zip_path  = get_json_value(presumed_manifest, "seven_zip_path")
+
 print("====================================================================")
 print("FACTORIO BUILD ENGINE INITIALIZED")
 print("Target Mod:       " .. mod)
 print("Mod Version:      " .. version)
 print("Factorio Version: " .. factorio_target)
+print("Dev Path:         " .. dev_path)
 print("Experimental:     " .. tostring(do_experimental))
 print("Make Backup:      " .. tostring(do_backup))
 print("Launch Toggle:    " .. tostring(launch_toggle))
@@ -107,16 +111,19 @@ print("====================================================================")
 
 -- 3. ENVIRONMENT ROUTING
 local home_dir   = is_windows and os.getenv("APPDATA") or os.getenv("HOME")
-local seven_zip_path = ""
 local destination = ""
-local dev_path = ""
 
+if (not dev_path or dev_path == "") then
+    if (is_windows) then
+        dev_path = "D:/mods/_dev/Factorio/" .. mod
+    else
+        dev_path = home_dir .. "/mods/_dev/Factorio/" .. mod
+    end
+end
 if (is_windows) then
-    seven_zip_path = "D:/7-Zip/7z.exe"
-    dev_path = "D:/mods/_dev/Factorio/" .. mod
+    seven_zip_path = seven_zip_path or "D:/7-Zip/7z.exe"
 else
     seven_zip_path = "7z"
-    dev_path = home_dir .. "/mods/_dev/Factorio/" .. mod
 end
 
 -- if (custom_dest and custom_dest ~= "" and use_custom_dest) then
