@@ -10,8 +10,8 @@ local Planets = Planets
 
 local Valid_Surfaces = Valid_Surfaces or {}
 
-local Startup_Settings_Constants = Startup_Settings_Constants or require("settings.startup.startup-settings-constants")
-local Runtime_Global_Settings_Constants = Runtime_Global_Settings_Constants or require("settings.runtime-global.runtime-global-settings-constants")
+local Startup_Settings_Constants = not mods and Startup_Settings_Constants or require("settings.startup.startup-settings-constants")
+local Runtime_Global_Settings_Constants = not mods and Runtime_Global_Settings_Constants or require("settings.runtime-global.runtime-global-settings-constants")
 
 local settings_service = {}
 
