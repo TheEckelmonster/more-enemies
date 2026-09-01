@@ -1,4 +1,10 @@
 {
+    "custom_output_directory": "D:/My_Documents/Games/Factorio/_Experimental/Factorio_2.1.13/mods/",
+    "default_exe_path": "D:/Steam/steamapps/common/Factorio/bin/x64/factorio.exe",
+    "custom_exe_path": "D:/My_Documents/Games/Factorio/_Experimental/Factorio_2.1.13/bin/x64/factorio.exe",
+    "mod_portal": "https://mods.factorio.com/mod/more-enemies",
+    "source_code": "https://github.com/TheEckelmonster/more-enemies",
+
 	"name": "more-enemies",
 	"version": "0.7.12",
 	"factorio_version": "2.0",

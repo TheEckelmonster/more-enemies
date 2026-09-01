@@ -1,8 +1,18 @@
 local character_explosion = util.table.deepcopy(data.raw["artillery-projectile"]["artillery-projectile"])
+if (not character_explosion) then return end
 character_explosion.name = "character-explosion-nuclear"
 
+local action = character_explosion.action and character_explosion.action[1] or character_explosion.action
+if (not action) then return end
+local action_delivery = action.action_delivery and action.action_delivery[1] or action.action_delivery
+if (not action_delivery) then return end
+local target_effects = action_delivery.target_effects
+if (not target_effects) then return end
+
+local table_insert = table.insert
+
 for k, v in pairs(data.raw["projectile"]["atomic-rocket"].action.action_delivery.target_effects) do
-    table.insert(character_explosion.action.action_delivery.target_effects, v)
+    table_insert(target_effects, v)
 end
 
 data:extend({character_explosion})
