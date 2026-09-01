@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.12
+Date: 2026-09-01
+  Bug Fixes:
+    - Backported the following from version 1.0.2 (thanks to Guilliman for the report!):
+      - Fixed on_entity_died runtime error related to false assumptions that a provided array would be contiguous (thanks to Schuby for the report! and thanks to T. Monkman also for the report and pull-request! #93)
+      - Fixed on_chunk_deleted event handler erroneously returning early (thanks to T. Monkman for the report and pull-request! #93)
+      - Fixed startup error related to the nauvis_biter_base_laser_defense menu-simulation when DamageIndicator was present (thanks to Not Stir-fried Aliens for the report!)
+---------------------------------------------------------------------------------------------------
 Version: 0.7.11
 Date: 2026-06-25
   Bug Fixes:
